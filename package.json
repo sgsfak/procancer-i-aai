@@ -1,0 +1,19 @@
+{
+  "name": "procancer-i-aai",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "blade": "^3.3.1",
+    "config": "^3.3.6",
+    "express": "^4.17.1",
+    "express-generator": "^4.16.1",
+    "express-session": "^1.17.1",
+    "openid-client": "^4.7.3"
+  }
+}
