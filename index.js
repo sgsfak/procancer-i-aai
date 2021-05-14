@@ -50,7 +50,7 @@ Issuer.discover('https://login.elixir-czech.org/oidc/')
 .then(() => app.listen(port))
 .then(() => console.log(`ProCancer-I AAI listening at http://localhost:${port}`));
 
-app.use('/static', express.static('public', {maxAge: 60_000 * 5}));
+app.use('/static', express.static('public', {maxAge: 60000 * 5}));
 app.set('view engine', 'blade');
 
 function view(req, res, template, data={})

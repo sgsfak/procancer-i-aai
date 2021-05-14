@@ -6,8 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Stelios Sfakianakis <ssfak@ics.forth.gr>",
+  "license": "Apache-2.0",
   "dependencies": {
     "blade": "^3.3.1",
     "config": "^3.3.6",
