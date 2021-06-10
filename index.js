@@ -3,6 +3,12 @@ const { Issuer, generators, custom } = require('openid-client');
 const session = require('express-session')
 const express = require('express')
 const querystring = require('querystring')
+
+const redis = require('redis')
+
+let RedisStore = require('connect-redis')(session)
+let redisClient = redis.createClient()
+
 const app = express()
 const port = 3000
 
@@ -30,7 +36,11 @@ custom.setHttpOptionsDefaults({
 });
 
 
-app.use(session({secret: generators.random(), resave: false, saveUninitialized: false}));
+app.use(session({
+    secret: generators.random(),
+    resave: false, saveUninitialized: false,
+    store: new RedisStore({ client: redisClient })
+}));
 
 
 let client;
@@ -60,12 +70,38 @@ function view(req, res, template, data={})
     res.render(template, dataUser);
     
 }
+
+
+function redirect_to(res, redirect_uri, params=[], status=302) {
+    
+    const u = new URL(redirect_uri);
+    const p = u.searchParams;
+    for (k in Object.keys(params)) {
+        let val = params[k];
+        if (params.hasOwnProperty(k) && !!val) {
+            p.append(k, val);
+        }
+    }
+
+    console.log("Redirect to %s", u);
+    res.redirect(302, u.toString());
+}
+
+
 app.get('/', (req, res) => {
     view(req, res, 'home');
 });
 
 
 app.get('/login', (req, res) => {
+    // XXX
+    if (req.session.continue) {
+        req.session.profile = { name: "Stelios", email:"ssfak@ics.forth.gr" };
+        const u = req.session.continue;
+        delete req.session.continue;
+        redirect_to(res, u);
+        return;
+    }
     view(req, res, 'login');
 });
 
@@ -134,7 +170,12 @@ app.get('/oidcb', (req, res) => {
     })
     .catch(e => {
         console.log(e);
-        res.redirect("/");
+        let u = "/";
+        if (req.session.continue) {
+            u = req.session.continue;
+            delete req.session.continue;
+        }
+        res.redirect(u);
     });
 });
 
@@ -154,6 +195,47 @@ app.get("/logout", (req, res)=>{
     res.redirect("/");
 });
 
+
+app.get("/.well-known/openid-configuration", (req, res) => {
+
+    const configuration = {
+        response_types_supported: [ "code", "token"],
+        pem_uri: `${HOST}/oauth2/pem`,
+        introspection_endpoint: `${HOST}/oauth2/introspect`,
+        grant_types_supported: [
+                "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                "authorization_code",
+                "password",
+                "refresh_token"
+        ],
+        issuer: `${HOST}`,
+        authorization_endpoint: `${HOST}/oauth2/auth`,
+        userinfo_endpoint: `${HOST}/me`,
+        introspection_endpoint_auth_methods_supported: "none",
+        claims_supported: [
+                "iss",
+                "sub",
+                "aud",
+                "iat",
+                "exp",
+                "jti",
+                "name",
+                "first_name",
+                "family_name",
+                "email"
+        ],
+        code_challenge_methods_supported: ["S256"],
+        jwks_uri: `${HOST}/oauth2/certs`,
+        subject_types_supported: [ "public"],
+        id_token_signing_alg_values_supported: [ "RS512" ],
+        registration_endpoint: `${HOST}/oauth2/registration`,
+        token_endpoint_auth_methods_supported: [ "none", "private_key_jwt"],
+        response_modes_supported: [ "query" ],
+        token_endpoint: `${HOST}/oauth2/token`
+    };
+    res.json(configuration);
+});
+
 app.get("/doregister", (req, res)=> {
     const qs = querystring.stringify({ vo: 'elixir_test', 
                                     targetnew: `${HOST}/login`,
@@ -162,3 +244,42 @@ app.get("/doregister", (req, res)=> {
 });
 
 
+app.get("/oauth2/auth", (req, res) => {
+    let { scope, redirect_uri, response_type, client_id, state, nonce, response_mode, code_challenge } = req.query;
+
+    if (!redirect_uri ) {
+        res.status(400).json({ error: "invalid_request" });
+        return;
+    }
+
+    if (response_type != "code" || !response_type || !client_id) {
+
+        // See https://tools.ietf.org/html/rfc6749#section-4.1.2.1
+        // for error responses
+        redirect_to(res, redirect_uri, {
+            error: "unsupported_response_type",
+            description: "This server supports only the authorization code flow",
+            state,
+        });
+        return;
+    }
+
+    if (!!req.session.profile) {
+        const code = generators.random();
+        console.log("Active session: %O", req.session.profile);
+
+        redirect_to(res, redirect_uri, {
+            code, nonce, state,
+            "challenge": code_challenge
+        });
+        return;
+    }
+    else {
+        const r = new URL(`${HOST}${req.path}`);
+        for (let k in req.query)
+            r.searchParams.append(k, req.query[k]);
+        req.session.continue = r.toString();
+        console.log("Not active session: redirecting to login, and then to %s", r);
+        res.redirect(302, `${HOST}/login`);
+    }
+});
