@@ -91,7 +91,7 @@ function redirect_to(res, redirect_uri, params={}, status=302) {
             p.append(k, val);
         }
     }
-
+    
     console.log("Redirect to %s", u);
     res.redirect(status, u.toString());
 }
@@ -103,18 +103,6 @@ app.get('/', (req, res) => {
 
 
 app.get('/login', (req, res) => {
-
-    // XXX
-    if (req.session.continue) {
-        const userInfo = { uid:"ssfak@ics.forth.gr", first_name: "Stelios", last_name: "Sfakianakis", email:"ssfak@ics.forth.gr" };
-        redisClient.set("uid:"+userInfo.uid, JSON.stringify(userInfo));
-        req.session.profile = userInfo;
-        const u = req.session.continue;
-        delete req.session.continue;
-        redirect_to(res, u);
-        return;
-    }
-
     view(req, res, 'login');
 });
 
@@ -140,10 +128,10 @@ app.get('/dologin', (req, res) => {
     'eduperson_entitlement',
     'eduperson_orcid',
     'ga4gh_passport_v1'];
-
+    
     const nonce = generators.random();
     req.session.nonce = nonce;
-
+    
     const u = client.authorizationUrl({
         scope: scopes.join(" "),
         resource: `${HOST}/`,
@@ -164,7 +152,7 @@ app.get('/oidcb', (req, res) => {
     
     const code_verifier = req.session.code_verifier;
     const nonce = req.session.nonce;
-
+    
     client.callback(`${HOST}/oidcb`, params, { code_verifier, state: params.state, nonce}).
     then(tokenSet => {
         console.log('received and validated tokens %j', tokenSet);
@@ -178,9 +166,17 @@ app.get('/oidcb', (req, res) => {
     })
     .then(userInfo => {
         console.log("%O", userInfo);
+        userInfo.uid = userInfo.sub; // XXX
         req.session.profile = userInfo;
-        redisClient.set("uid:"+userInfo.uid, JSON.stringify(userInfo));
-        res.redirect("/profile");
+        redisClient.set("uid:" + userInfo.uid, JSON.stringify(userInfo));
+        if (req.session.continue) {
+            const u = req.session.continue;
+            delete req.session.continue;
+            redirect_to(res, u);
+        }
+        else {
+            res.redirect("/profile");
+        }
     })
     .catch(e => {
         console.log(e);
@@ -211,27 +207,24 @@ app.get("/logout", (req, res)=>{
 
 
 app.get("/.well-known/openid-configuration", (req, res) => {
-
+    
     const configuration = {
         response_types_supported: [ "code", "token"],
         introspection_endpoint: `${HOST}/oauth2/introspect`,
-        grant_types_supported: [
-                "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                "authorization_code"
-        ],
+        grant_types_supported: ["authorization_code"],
         issuer: `${HOST}`,
         introspection_endpoint_auth_methods_supported: "none",
         claims_supported: [
-                "iss",
-                "sub",
-                "aud",
-                "iat",
-                "exp",
-                "jti",
-                "name",
-                "first_name",
-                "family_name",
-                "email"
+            "iss",
+            "sub",
+            "aud",
+            "iat",
+            "exp",
+            "jti",
+            "name",
+            "first_name",
+            "family_name",
+            "email"
         ],
         subject_types_supported: [ "public"],
         id_token_signing_alg_values_supported: [ "RS256" ],
@@ -245,10 +238,10 @@ app.get("/.well-known/openid-configuration", (req, res) => {
 });
 
 app.get("/doregister", (req, res)=> {
-    redirect_to(res, "https://perun.elixir-czech.cz/registrar/",
-                                {  vo: 'elixir_test', 
-                                   targetnew: `${HOST}/login`,
-                                   targetexisting: `${HOST}/login`});
+    redirect_to(res, "https://perun.elixir-czech.cz/registrar/", {
+        vo: 'elixir_test',
+        targetnew: `${HOST}/login`,
+        targetexisting: `${HOST}/login`});
 });
 
 
@@ -261,17 +254,17 @@ app.get("/oauth2/certs", (req, res) => {
         JSONWebKey.fromPEM(webKeyPub).toJSON()
     ]});
 });
-    
+
 app.get("/oauth2/auth", (req, res) => {
     let { scope, redirect_uri, response_type, client_id, state, nonce} = req.query;
-
+    
     if (!redirect_uri ) {
         res.status(400).json({ error: "invalid_request" });
         return;
     }
-
+    
     if (response_type != "code" || !response_type || !client_id) {
-
+        
         // See https://tools.ietf.org/html/rfc6749#section-4.1.2.1
         // for error responses
         redirect_to(res, redirect_uri, {
@@ -281,11 +274,11 @@ app.get("/oauth2/auth", (req, res) => {
         });
         return;
     }
-
+    
     if (!!req.session.profile) {
         const code = generators.random();
         console.log("Active session: %O", req.session.profile);
-
+        
         const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce};
         redisClient.set('oidc-code:' + code, JSON.stringify(data));
         redirect_to(res, redirect_uri, {code, state});
@@ -293,8 +286,9 @@ app.get("/oauth2/auth", (req, res) => {
     }
     else {
         const r = new URL(`${HOST}${req.path}`);
-        for (const [k,v] of Object.entries(req.query))
+        for (const [k, v] of Object.entries(req.query)) {
             r.searchParams.append(k, v);
+        }
         req.session.continue = r.toString();
         console.log("Not active session: redirecting to login, and then to %s", r);
         res.redirect(302, `${HOST}/login`);
@@ -318,19 +312,23 @@ app.post("/oauth2/token", async (req, res) => {
         res.status(401).json({error: 'invalid_grant'});
         return;
     }
+    
+    // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
+    // anyway..
+    await redisClient.del('oidc-code:' + code);
 
     let idToken = JSON.parse(await redisClient.get("uid:"+authReq.uid));
     idToken.iss = HOST;
     idToken.type = "id_token";
     idToken.aud = authReq.client_id;
     idToken.nonce = authReq.nonce;
-
+    
     const TTL = 3600;
     const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
-
+    
     const accToken = {iss: HOST, type: "access_token", aud: client_id, uid: idToken.uid};
     const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
-
+    
     let response = {token_type : "Bearer", expires_in : TTL, 
                     nonce: authReq.nonce,
                     scope: authReq.scope,
