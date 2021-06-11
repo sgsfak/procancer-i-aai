@@ -16,6 +16,8 @@
     "express-generator": "^4.16.1",
     "express-session": "^1.17.1",
     "ioredis": "^4.27.5",
+    "json-web-key": "^0.4.0",
+    "jsonwebtoken": "^8.5.1",
     "openid-client": "^4.7.3"
   }
 }
