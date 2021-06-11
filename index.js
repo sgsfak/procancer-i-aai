@@ -319,18 +319,21 @@ app.post("/oauth2/token", async (req, res) => {
         return;
     }
 
-    let idToken = await redisClient.get("uid:"+authReq.uid);
+    let idToken = JSON.parse(await redisClient.get("uid:"+authReq.uid));
     idToken.iss = HOST;
     idToken.type = "id_token";
-    idToken.aud = client_id;
+    idToken.aud = authReq.client_id;
     idToken.nonce = authReq.nonce;
 
-    const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256'});
+    const TTL = 3600;
+    const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
 
     const accToken = {iss: HOST, type: "access_token", aud: client_id, uid: idToken.uid};
-    const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256'});
+    const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
 
-    let response = {token_type : "Bearer", expires_in : 3600, 
+    let response = {token_type : "Bearer", expires_in : TTL, 
+                    nonce: authReq.nonce,
+                    scope: authReq.scope,
                     id_token: jwtIdToken, access_token: jwtAccToken};
     console.log("Token response: %O", response);
     res.json(response);
