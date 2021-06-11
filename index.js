@@ -286,8 +286,9 @@ app.get("/oauth2/auth", (req, res) => {
         const code = generators.random();
         console.log("Active session: %O", req.session.profile);
 
-        redisClient.set('oidc-code:' + code, JSON.stringify(req.query));
-        redirect_to(res, redirect_uri, {code});
+        const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce};
+        redisClient.set('oidc-code:' + code, JSON.stringify(data));
+        redirect_to(res, redirect_uri, {code, state});
         return;
     }
     else {
@@ -301,11 +302,6 @@ app.get("/oauth2/auth", (req, res) => {
 });
 
 app.post("/oauth2/token", async (req, res) => {
-
-    if (!req.session || !req.session.profile) {
-        res.status(404).json({error: 'invalid_request', description: 'USer not logged in!!'});
-        return;
-    }
     // See https://developer.okta.com/docs/reference/api/oidc/#token
     const {code, redirect_uri, grant_type, client_id} = req.body;
     if (grant_type != "authorization_code" ) {
@@ -323,16 +319,16 @@ app.post("/oauth2/token", async (req, res) => {
         return;
     }
 
-    const idToken = JSON.parse(JSON.stringify(req.session.profile));
+    let idToken = await redisClient.get("uid:"+authReq.uid);
     idToken.iss = HOST;
     idToken.type = "id_token";
     idToken.aud = client_id;
     idToken.nonce = authReq.nonce;
 
-    const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: 3600});
+    const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256'});
 
     const accToken = {iss: HOST, type: "access_token", aud: client_id, uid: idToken.uid};
-    const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: 3600});
+    const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256'});
 
     let response = {token_type : "Bearer", expires_in : 3600, 
                     id_token: jwtIdToken, access_token: jwtAccToken};
