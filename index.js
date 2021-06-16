@@ -226,7 +226,10 @@ app.get("/.well-known/openid-configuration", (req, res) => {
         ],
         subject_types_supported: [ "public"],
         id_token_signing_alg_values_supported: [ "RS256" ],
-        token_endpoint_auth_methods_supported: [ "none", "private_key_jwt"],
+        
+        // See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
+        token_endpoint_auth_methods_supported: [ "client_secret_basic"],
+        
         authorization_endpoint: `${HOST}/oauth2/auth`,
         userinfo_endpoint: `${HOST}/oauth2/userinfo`,
         end_session_endpoint: `${HOST}/logout`,

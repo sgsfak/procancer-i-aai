@@ -10,6 +10,7 @@
   "author": "Stelios Sfakianakis <ssfak@ics.forth.gr>",
   "license": "Apache-2.0",
   "dependencies": {
+    "basic-auth": "^2.0.1",
     "bcrypt": "^5.0.1",
     "blade": "^3.3.1",
     "config": "^3.3.6",

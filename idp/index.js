@@ -1,6 +1,8 @@
 const config = require('config')
 const express = require('express')
 const { generators } = require('openid-client');
+const authBasic = require('basic-auth');
+const bcrypt = require('bcrypt');
 const {redirect_to, validUrl} = require("../utils");
 
 const db = require('../db');
@@ -88,7 +90,8 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             const code = generators.random();
             console.log("Active session: %O", req.session.profile);
             
-            const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce};
+            const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce,
+                           secret_hash: client_registration.pwd_hash};
             const code_ttl = 2 * 60; // 2 minutes TTL for this code
             await redisClient.set('oidc-code:' + code, JSON.stringify(data), 'ex', code_ttl);
             redirect_to(res, redirect_uri, {code, state});
@@ -126,6 +129,17 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
         // anyway..
         await redisClient.del('oidc-code:' + code);
+
+        // Check clients credentials (secret):
+        // See https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1
+        const authHeader = req.get("Authorization")
+        const creds = authBasic.parse(authHeader);
+        if (!creds || ! await bcrypt.compare(creds.pass, authReq.secret_hash)) {
+            console.log("Client credentials not valid! Authorization header:"+authHeader);
+            // Error response: https://openid.net/specs/openid-connect-core-1_0.html#TokenErrorResponse
+            res.status(400).json({error: "invalid_request"});
+            return;
+        }
 
         let idToken = JSON.parse(await redisClient.get("uid:"+authReq.uid));
         idToken.iss = HOST;
