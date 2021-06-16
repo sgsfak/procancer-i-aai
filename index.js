@@ -2,21 +2,18 @@ const config = require('config')
 const { Issuer, generators, custom } = require('openid-client');
 const session = require('express-session')
 const express = require('express')
+const fs = require('fs');
+const Redis = require('ioredis')
 
 const {redirect_to} = require("./utils");
-
-const Redis = require('ioredis')
+const db = require('./db');
 
 let RedisStore = require('connect-redis')(session)
 let redisClient = new Redis({keyPrefix: 'pca-aai:'});
-
-const idpRouter = require("./idp");
 const app = express()
 const port = 3000
 
 const HOST = config.myhost;
-
-const db = require('./db');
 
 custom.setHttpOptionsDefaults({
     timeout: 10000,
@@ -39,6 +36,10 @@ custom.setHttpOptionsDefaults({
     //   },
 });
 
+
+// See how-to-create-RS256-keys.txt
+const webKeyPub = fs.readFileSync('jwtRS256.key.pub');
+const webKeyPrivate = fs.readFileSync('jwtRS256.key');
 
 app.use(session({
     name: "aai-sid",
@@ -247,4 +248,6 @@ app.get("/me", (req, res) => {
     res.json(req.session.profile);
 });
 
-app.use("/oauth2", idpRouter);
+const idpRoutes = require("./idp");
+
+app.use("/oauth2", idpRoutes({redisClient, webKeyPub, webKeyPrivate}));
