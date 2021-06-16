@@ -2,24 +2,21 @@ const config = require('config')
 const { Issuer, generators, custom } = require('openid-client');
 const session = require('express-session')
 const express = require('express')
-const querystring = require('querystring')
+
+const {redirect_to} = require("./utils");
 
 const Redis = require('ioredis')
-const jwt = require('jsonwebtoken')
-const JSONWebKey = require('json-web-key' )
-const fs = require('fs');
-
-// See how-to-create-RS256-keys.txt
-const webKeyPub = fs.readFileSync('jwtRS256.key.pub');
-const webKeyPrivate = fs.readFileSync('jwtRS256.key');
 
 let RedisStore = require('connect-redis')(session)
 let redisClient = new Redis({keyPrefix: 'pca-aai:'});
 
+const idpRouter = require("./idp");
 const app = express()
 const port = 3000
 
 const HOST = config.myhost;
+
+const db = require('./db');
 
 custom.setHttpOptionsDefaults({
     timeout: 10000,
@@ -46,7 +43,7 @@ custom.setHttpOptionsDefaults({
 app.use(session({
     name: "aai-sid",
     unset: "destroy",
-    secret: "ProCance-I AAI", // generators.random(),
+    secret: generators.random(),
     resave: false, saveUninitialized: true,
     store: new RedisStore({ client: redisClient })
 }));
@@ -67,6 +64,9 @@ Issuer.discover('https://login.elixir-czech.org/oidc/')
         // token_endpoint_auth_method (default "client_secret_basic")
     });
 })
+// Test the connection to the database, and the existence of the clients table:
+.then (() =>  db.query("SELECT count(redirect_uri) cnt FROM clients where active is true"))
+.then (({rows}) => console.log(`Number of available clients:${rows[0].cnt}`))
 .then(() => app.listen(port))
 .then(() => console.log(`ProCancer-I AAI listening at http://localhost:${port}`));
 
@@ -78,22 +78,6 @@ function view(req, res, template, data={})
     const dataUser = {'user' : req.session.user ? req.session.user : null, ...data};
     // console.log("Data: %O", dataUser);
     res.render(template, dataUser);
-    
-}
-
-
-function redirect_to(res, redirect_uri, params={}, status=302) {
-    
-    const u = new URL(redirect_uri);
-    const p = u.searchParams;
-    for (const [k, val] of Object.entries(params)) {
-        if (!!val) {
-            p.append(k, val);
-        }
-    }
-    
-    console.log("Redirect to %s", u);
-    res.redirect(status, u.toString());
 }
 
 
@@ -145,7 +129,7 @@ app.get('/dologin', (req, res) => {
     res.redirect(u);
 });
 
-app.get('/oidcb', (req, res) => {
+app.get('/oidcb', async (req, res) => {
     const params = client.callbackParams(req);
     console.log("got cb");
     console.dir(params);
@@ -153,22 +137,21 @@ app.get('/oidcb', (req, res) => {
     const code_verifier = req.session.code_verifier;
     const nonce = req.session.nonce;
     
-    client.callback(`${HOST}/oidcb`, params, { code_verifier, state: params.state, nonce}).
-    then(tokenSet => {
+    try {
+        const tokenSet = await client.callback(`${HOST}/oidcb`, params, { code_verifier, state: params.state, nonce});
         console.log('received and validated tokens %j', tokenSet);
         console.log('validated ID Token claims %j', tokenSet.claims());
         req.session.tokens = tokenSet;
         req.session.user = tokenSet.claims();
-        return tokenSet.access_token;
-    })
-    .then(access_token => {
-        return client.userinfo(req.session.tokens.access_token);
-    })
-    .then(userInfo => {
+        const access_token = tokenSet.access_token;
+        const userInfo = await client.userinfo(access_token);
+
         console.log("%O", userInfo);
         userInfo.uid = userInfo.sub; // XXX
         req.session.profile = userInfo;
-        redisClient.set("uid:" + userInfo.uid, JSON.stringify(userInfo));
+
+        await redisClient.set("uid:" + userInfo.uid, JSON.stringify(userInfo));
+        
         if (req.session.continue) {
             const u = req.session.continue;
             delete req.session.continue;
@@ -177,8 +160,8 @@ app.get('/oidcb', (req, res) => {
         else {
             res.redirect("/profile");
         }
-    })
-    .catch(e => {
+    }
+    catch (e) {
         console.log(e);
         let u = "/";
         if (req.session.continue) {
@@ -186,7 +169,7 @@ app.get('/oidcb', (req, res) => {
             delete req.session.continue;
         }
         res.redirect(u);
-    });
+    }
 });
 
 
@@ -201,19 +184,33 @@ app.get('/profile', (req, res) => {
 });
 
 app.get("/logout", (req, res)=>{
+    // TODO: Actually in the case of https://openid.net/specs/openid-connect-rpinitiated-1_0.html
+    // we should check if the post_logout_redirect_uri value supplied match 
+    // one of the client's previously registered post_logout_redirect_uris values.
+
+    // TODO: Furthermore "An id_token_hint carring an ID Token for the RP is also REQUIRED 
+    // when requesting post-logout redirection; if it is not supplied with post_logout_redirect_uri,
+    // the OP MUST NOT perform post-logout redirection." 
+    let { post_logout_redirect_uri, state} = req.query;
     req.session.destroy();
-    res.redirect("/");
+    if (post_logout_redirect_uri) {
+        redirect_to(res, post_logout_redirect_uri, {state});
+    }
+    else {
+        res.redirect("/");
+    }
 });
 
 
 app.get("/.well-known/openid-configuration", (req, res) => {
     
     const configuration = {
-        response_types_supported: [ "code", "token"],
+        response_types_supported: [ "code" ],
         introspection_endpoint: `${HOST}/oauth2/introspect`,
         grant_types_supported: ["authorization_code"],
         issuer: `${HOST}`,
         introspection_endpoint_auth_methods_supported: "none",
+        response_modes_supported: ["query"],
         claims_supported: [
             "iss",
             "sub",
@@ -230,7 +227,8 @@ app.get("/.well-known/openid-configuration", (req, res) => {
         id_token_signing_alg_values_supported: [ "RS256" ],
         token_endpoint_auth_methods_supported: [ "none", "private_key_jwt"],
         authorization_endpoint: `${HOST}/oauth2/auth`,
-        userinfo_endpoint: `${HOST}/userinfo`,
+        userinfo_endpoint: `${HOST}/oauth2/userinfo`,
+        end_session_endpoint: `${HOST}/logout`,
         token_endpoint: `${HOST}/oauth2/token`,
         jwks_uri: `${HOST}/oauth2/certs`
     };
@@ -249,104 +247,4 @@ app.get("/me", (req, res) => {
     res.json(req.session.profile);
 });
 
-app.get("/oauth2/certs", (req, res) => {
-    res.json({keys: [
-        JSONWebKey.fromPEM(webKeyPub).toJSON()
-    ]});
-});
-
-app.get("/oauth2/auth", (req, res) => {
-    let { scope, redirect_uri, response_type, client_id, state, nonce} = req.query;
-    
-    if (!redirect_uri ) {
-        res.status(400).json({ error: "invalid_request" });
-        return;
-    }
-    
-    if (response_type != "code" || !response_type || !client_id) {
-        
-        // See https://tools.ietf.org/html/rfc6749#section-4.1.2.1
-        // for error responses
-        redirect_to(res, redirect_uri, {
-            error: "unsupported_response_type",
-            description: "This server supports only the authorization code flow",
-            state
-        });
-        return;
-    }
-    
-    if (!!req.session.profile) {
-        const code = generators.random();
-        console.log("Active session: %O", req.session.profile);
-        
-        const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce};
-        redisClient.set('oidc-code:' + code, JSON.stringify(data));
-        redirect_to(res, redirect_uri, {code, state});
-        return;
-    }
-    else {
-        const r = new URL(`${HOST}${req.path}`);
-        for (const [k, v] of Object.entries(req.query)) {
-            r.searchParams.append(k, v);
-        }
-        req.session.continue = r.toString();
-        console.log("Not active session: redirecting to login, and then to %s", r);
-        res.redirect(302, `${HOST}/login`);
-    }
-});
-
-app.post("/oauth2/token", async (req, res) => {
-    // See https://developer.okta.com/docs/reference/api/oidc/#token
-    const {code, redirect_uri, grant_type, client_id} = req.body;
-    if (grant_type != "authorization_code" ) {
-        res.status(401).json({error: 'unsupported_grant_type'});
-        return;
-    }
-    const authReqStored = await redisClient.get('oidc-code:' + code);
-    if (!authReqStored) {
-        res.status(401).json({error: 'invalid_grant'});
-        return;
-    }
-    const authReq = JSON.parse(authReqStored);
-    if (!redirect_uri || authReq.redirect_uri != redirect_uri) {
-        res.status(401).json({error: 'invalid_grant'});
-        return;
-    }
-    
-    // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
-    // anyway..
-    await redisClient.del('oidc-code:' + code);
-
-    let idToken = JSON.parse(await redisClient.get("uid:"+authReq.uid));
-    idToken.iss = HOST;
-    idToken.type = "id_token";
-    idToken.aud = authReq.client_id;
-    idToken.nonce = authReq.nonce;
-    
-    const TTL = 3600;
-    const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
-    
-    const accToken = {iss: HOST, type: "access_token", aud: client_id, uid: idToken.uid};
-    const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
-    
-    let response = {token_type : "Bearer", expires_in : TTL, 
-                    nonce: authReq.nonce,
-                    scope: authReq.scope,
-                    id_token: jwtIdToken, access_token: jwtAccToken};
-    console.log("Token response: %O", response);
-    res.json(response);
-});
-
-
-app.get("/userinfo", async (req, res) => {
-    const authHeader = req.header("Authorization") || '';
-    jwtToken = authHeader.replace("Bearer", "").trim();
-    try {
-        const token = jwt.verify(jwtToken, webKeyPub);
-        let a = await redisClient.get("uid:"+token.uid);
-        res.json(JSON.parse(a));
-    }
-    catch(error) {
-        res.status(400).json({error});
-    }
-});
+app.use("/oauth2", idpRouter);

@@ -9,6 +9,7 @@
   "author": "Stelios Sfakianakis <ssfak@ics.forth.gr>",
   "license": "Apache-2.0",
   "dependencies": {
+    "bcrypt": "^5.0.1",
     "blade": "^3.3.1",
     "config": "^3.3.6",
     "connect-redis": "^6.0.0",
@@ -18,6 +19,7 @@
     "ioredis": "^4.27.5",
     "json-web-key": "^0.4.0",
     "jsonwebtoken": "^8.5.1",
-    "openid-client": "^4.7.3"
+    "openid-client": "^4.7.3",
+    "pg": "^8.6.0"
   }
 }

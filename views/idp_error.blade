@@ -1,0 +1,15 @@
+include "layout.blade"
+append head
+    style
+        |  .error { background-color: #59584d; color: #fbf1a2; padding:0.2em 0.5em; border-radius:3px}
+append body
+    main.container.py-4.text-center
+        h1 OpenId-Connect Error!
+        p
+            |
+                Invalid request sent by the client application:  
+            span.error #{error}
+        p
+            | Read the  
+            a(href="https://openid.net/specs/openid-connect-core-1_0.html") specification
+            |  and maybe contact admins of the ProCancer-I Identity Provider.
