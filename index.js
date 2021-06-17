@@ -258,7 +258,7 @@ app.get("/me", routeAuth, (req, res) => {
 const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, webKeyPub, webKeyPrivate});
 
 
-app.get("/access_token", routeAuth, (req, res) => {
+app.get("/access_token", (req, res) => {
     view(req, res, 'access_token', {});
 });
 

@@ -5,12 +5,16 @@ append head
         | input:focus { border-color: #86b7fe;}
         | .field { margin: 1rem 0;}
         | label { margin-right: 1em;}
-        | form {width: max(300px, 70%); margin: 1rem 0;} 
-        | button { color: #fff; padding:0.375em 0.75rem; background-color: #0b5ed7; border-radius:0.25rem; border: 1px solid #ced4da; line-height: 1.5; }
+        | form {width: max(300px, 70%); margin: 1rem 0;}
+        | .btn2 { margin:1rem auto;text-decoration: none; color: #fff !important; padding:0.375em 0.75rem; background-color: #0b5ed7; border-radius:0.25rem; border: 1px solid #ced4da; line-height: 1.5; }
+        | #token {display: block; width: max(400px, 80%); padding:0.375em 0.75rem; background-color: #dcdcdd;}
+        | #result { display: none;}
+append scripts
+    script(src="/static/js/app.js")
 append body
     main.container.py-4
         h1.text-center Create an Access Token
-        form(method="POST", autocomplete="off")
+        form(method="POST", autocomplete="off", onsubmit="createNewToken(event)")
             .field
                 label Audience
                 input(name="audience", size="80")
@@ -21,4 +25,8 @@ append body
                 label Duration (in hours)
                 input(name="ttl", type="number", size="4", min="1", value="2")
             .field
-                button Submit
+                button.btn2 Submit
+        #result
+            textarea#token(rows="5")
+            button.btn2(onclick="clipboardNewToken(event)") Copy to clipboard
+            a.btn2(href="https://jwt.ms/", target="_new") Decode it here
