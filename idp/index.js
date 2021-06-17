@@ -142,16 +142,20 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         }
 
         let idToken = JSON.parse(await redisClient.get("uid:"+authReq.uid));
-        idToken.iss = HOST;
         idToken.type = "id_token";
-        idToken.aud = authReq.client_id;
         idToken.nonce = authReq.nonce;
         
         const TTL = 3600;
-        const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
+        const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {
+            algorithm: 'RS256', expiresIn: TTL,
+            issuer: HOST, audience: authReq.client_id
+        });
         
-        const accToken = {iss: HOST, type: "access_token", aud: client_id, uid: idToken.uid};
-        const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {algorithm: 'RS256', expiresIn: TTL});
+        const accToken = {type: "access_token", scope: "read write"};
+        const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {
+            algorithm: 'RS256', expiresIn: TTL,
+            issuer: HOST, audience: authReq.client_id, subject: idToken.uid
+        });
         
         let response = {token_type : "Bearer", expires_in : TTL, 
                         nonce: authReq.nonce,
