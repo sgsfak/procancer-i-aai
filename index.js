@@ -174,14 +174,18 @@ app.get('/oidcb', async (req, res) => {
 });
 
 
-app.get('/profile', (req, res) => {
+function routeAuth(req, res, next) {
     if (!!req.session.profile) {
-        view(req, res, 'profile', {profile: req.session.profile});
+        next(req, res);
     }
     else {
         res.redirect("/login");
     }
-    
+}
+
+
+app.get('/profile', routeAuth, (req, res) => {
+    view(req, res, 'profile', {profile: req.session.profile});
 });
 
 app.get("/logout", (req, res)=>{
@@ -247,10 +251,19 @@ app.get("/doregister", (req, res)=> {
 });
 
 
-app.get("/me", (req, res) => {
+app.get("/me", routeAuth, (req, res) => {
     res.json(req.session.profile);
 });
 
-const idpRoutes = require("./idp");
+const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, webKeyPub, webKeyPrivate});
 
-app.use("/oauth2", idpRoutes({redisClient, webKeyPub, webKeyPrivate}));
+app.get("/access_token", routeAuth, (req, res) => {
+    let { audience, ttl, scopes } = req.query;
+    ttl = ttl || 3600;
+    scopes = scopes || "read write";
+    const token = newAccessToken(req.session.profile.uid, audience, ttl, scopes);
+    res.send(token);
+});
+
+
+app.use("/oauth2", oauthRouter);

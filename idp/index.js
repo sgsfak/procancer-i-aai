@@ -14,6 +14,16 @@ const HOST = config.myhost;
 
 function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
+    const newAccessToken = function(subject, audience, ttl, scope="read write") {
+
+        const accToken = {type: "access_token", scope};
+        const token = jwt.sign(accToken, webKeyPrivate, {
+            algorithm: 'RS256', expiresIn: ttl,
+            issuer: HOST, audience, subject
+        });
+        return token;
+    }
+
     const router = express.Router();
     router.get("/certs", (req, res) => {
         res.json({keys: [
@@ -151,12 +161,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             issuer: HOST, audience: authReq.client_id
         });
         
-        const accToken = {type: "access_token", scope: "read write"};
-        const jwtAccToken = jwt.sign(accToken, webKeyPrivate, {
-            algorithm: 'RS256', expiresIn: TTL,
-            issuer: HOST, audience: authReq.client_id, subject: idToken.uid
-        });
-        
+        const jwtAccToken = newAccessToken(idToken.uid, authReq.client_id, TTL);
         let response = {token_type : "Bearer", expires_in : TTL, 
                         nonce: authReq.nonce,
                         scope: authReq.scope,
@@ -178,7 +183,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 res.status(400).json({error});
             }
         });
-    return router;
+    return { newAccessToken, router };
 }
 
 module.exports = idpRoutes;
