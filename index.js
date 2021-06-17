@@ -265,7 +265,7 @@ app.get("/access_token", routeAuth, (req, res) => {
 app.post("/access_token", routeAuth, (req, res) => {
     let { audience, ttl, scopes } = req.body;
     audience = audience || HOST;
-    ttl = ttl || 3600;
+    ttl = (ttl || 1) * 60 * 60;
     scopes = scopes || "read write";
     const token = newAccessToken(req.session.profile.uid, audience, ttl, scopes);
     res.set('Cache-Control', 'no-store'); // No cache
