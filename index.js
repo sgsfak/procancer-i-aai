@@ -176,7 +176,7 @@ app.get('/oidcb', async (req, res) => {
 
 function routeAuth(req, res, next) {
     if (!!req.session.profile) {
-        next(req, res);
+        next();
     }
     else {
         res.redirect("/login");
@@ -259,10 +259,12 @@ const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, 
 
 app.get("/access_token", routeAuth, (req, res) => {
     let { audience, ttl, scopes } = req.query;
+    audience = audience || HOST;
     ttl = ttl || 3600;
     scopes = scopes || "read write";
     const token = newAccessToken(req.session.profile.uid, audience, ttl, scopes);
-    res.send(token);
+    res.set('Cache-Control', 'no-store'); // No cache
+    res.type('txt').send(token);
 });
 
 
