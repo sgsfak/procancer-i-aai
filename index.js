@@ -257,8 +257,13 @@ app.get("/me", routeAuth, (req, res) => {
 
 const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, webKeyPub, webKeyPrivate});
 
+
 app.get("/access_token", routeAuth, (req, res) => {
-    let { audience, ttl, scopes } = req.query;
+    view(req, res, 'access_token', {});
+});
+
+app.post("/access_token", routeAuth, (req, res) => {
+    let { audience, ttl, scopes } = req.body;
     audience = audience || HOST;
     ttl = ttl || 3600;
     scopes = scopes || "read write";
