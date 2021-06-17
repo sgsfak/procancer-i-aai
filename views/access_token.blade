@@ -1,0 +1,24 @@
+include "layout.blade"
+append head
+    style
+        | input { color: #6c757d; padding:0.375em 0.75rem; border-radius:0.25rem; border: 1px solid #ced4da; line-height: 1.5; border-color .15s ease-in-out,box-shadow .15s ease-in-out}
+        | input:focus { border-color: #86b7fe;}
+        | .field { margin: 1rem 0;}
+        | label { margin-right: 1em;}
+        | form {width: max(300px, 70%); margin: 1rem 0;} 
+        | button { color: #fff; padding:0.375em 0.75rem; background-color: #0b5ed7; border-radius:0.25rem; border: 1px solid #ced4da; line-height: 1.5; }
+append body
+    main.container.py-4
+        h1.text-center Create an Access Token
+        form(method="POST", autocomplete="off")
+            .field
+                label Audience
+                input(name="audience", size="80")
+            .field
+                label Scopes
+                input(name="scopes", size="50")
+            .field
+                label Duration (in hours)
+                input(name="ttl", type="number", size="4", min="1", value="2")
+            .field
+                button Submit
