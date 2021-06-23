@@ -32,7 +32,6 @@ function createNewToken(event)
 function clipboardNewToken(event) {
     event.preventDefault();
     let ta = document.getElementById('token');
-    if (!!navigator.clipboard) {
-        navigator.clipboard.writeText(ta.innerText).then( ()=> console.log("Copied"));
-    }
+    ta.select()
+    document.execCommand("copy");
 }

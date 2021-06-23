@@ -7,7 +7,7 @@ append head
         | label { margin-right: 1em;}
         | form {width: max(300px, 70%); margin: 1rem 0;}
         | .btn2 { margin:1rem auto;text-decoration: none; color: #fff !important; padding:0.375em 0.75rem; background-color: #0b5ed7; border-radius:0.25rem; border: 1px solid #ced4da; line-height: 1.5; }
-        | #token {display: block; width: max(400px, 80%); padding:0.375em 0.75rem; background-color: #dcdcdd;}
+        | #token {display: block; width: max(400px, 80%); padding:0.75em 0.75rem; background-color: #dcdcdd;}
         | #result { display: none;}
 append scripts
     script(src="/static/js/app.js")
@@ -27,6 +27,6 @@ append body
             .field
                 button.btn2 Submit
         #result
-            textarea#token(rows="5")
+            textarea#token(rows="15", readonly="on")
             button.btn2(onclick="clipboardNewToken(event)") Copy to clipboard
-            a.btn2(href="https://jwt.ms/", target="_new") Decode it here
+            a.btn2(href="https://jwt.ms/", target="_blank", rel="noopener noreferrer") Decode it here

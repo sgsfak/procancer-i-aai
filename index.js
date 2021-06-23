@@ -2,6 +2,7 @@ const config = require('config')
 const { Issuer, generators, custom } = require('openid-client');
 const session = require('express-session')
 const express = require('express')
+const multer = require("multer")()
 const fs = require('fs');
 const Redis = require('ioredis')
 
@@ -258,11 +259,11 @@ app.get("/me", routeAuth, (req, res) => {
 const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, webKeyPub, webKeyPrivate});
 
 
-app.get("/access_token", (req, res) => {
+app.get("/access_token", routeAuth, (req, res) => {
     view(req, res, 'access_token', {});
 });
 
-app.post("/access_token", routeAuth, (req, res) => {
+app.post("/access_token", routeAuth, multer.none(), (req, res) => {
     let { audience, ttl, scopes } = req.body;
     audience = audience || HOST;
     ttl = (ttl || 1) * 60 * 60;
