@@ -26,9 +26,33 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
     const router = express.Router();
     router.get("/certs", (req, res) => {
-        res.json({keys: [
-            JSONWebKey.fromPEM(webKeyPub).toJSON()
-        ]});
+        let jwk = JSONWebKey.fromPEM(webKeyPub).toJSON();
+        // Add some additional claims for the signing key
+        // As an example, see https://www.googleapis.com/oauth2/v3/certs
+        /* 
+        use: this claim specifies the intended use of the key. 
+             There are two possible uses: sig (for signature) and enc (for encryption). 
+             This claim is optional. 
+             The same key can be used for encryption and signatures, 
+             in which case this member should not be present.
+        */
+        jwk.use = "sig";
+        /*
+        alg: The algorithm intended to be used with this key.
+             We use RS256: RSASSA PKCS1 v1.5 using SHA-256
+        */
+        jwk.alg = "RS256";
+        /*
+        x5u: a URL that points to a X.509 public key certificate or certificate chain 
+             in PEM encoded form.
+        */
+        jwk.x5u = `${HOST}${req.baseUrl}/pem`;
+        res.json({keys: [jwk]});
+    });
+
+
+    router.get("/pem", async (req, res) => {
+        res.type("txt").send(webKeyPub);
     });
 
     router.get("/auth", async (req, res) => {
@@ -176,13 +200,15 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         jwtToken = authHeader.replace("Bearer", "").trim();
         try {
             const token = jwt.verify(jwtToken, webKeyPub);
-            let a = await redisClient.get("uid:"+token.uid);
+            const uid = token.uid || token.sub;
+            let a = await redisClient.get("uid:"+uid);
             res.json(JSON.parse(a));
         }
-            catch(error) {
-                res.status(400).json({error});
-            }
-        });
+        catch(error) {
+            res.status(400).json({error});
+        }
+    });
+
     return { newAccessToken, router };
 }
 
