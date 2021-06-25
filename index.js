@@ -230,10 +230,11 @@ app.get("/.well-known/openid-configuration", (req, res) => {
             "email"
         ],
         subject_types_supported: [ "public"],
-        id_token_signing_alg_values_supported: [ "RS256" ],
+        id_token_signing_alg_values_supported: ["RS256"],
+        code_challenge_methods_supported: [ "S256" ],
         
         // See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
-        token_endpoint_auth_methods_supported: [ "client_secret_basic"],
+        token_endpoint_auth_methods_supported: [ "client_secret_basic", "client_secret_post"],
         
         authorization_endpoint: `${HOST}/oauth2/auth`,
         userinfo_endpoint: `${HOST}/oauth2/userinfo`,

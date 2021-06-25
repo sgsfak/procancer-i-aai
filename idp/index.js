@@ -9,7 +9,6 @@ const db = require('../db');
 
 const jwt = require('jsonwebtoken')
 const JSONWebKey = require('json-web-key' );
-const { response } = require('express');
 
 const HOST = config.myhost;
 
@@ -57,7 +56,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
     });
 
     router.get("/auth", async (req, res) => {
-        let { scope, redirect_uri, response_type, client_id, state, nonce, audience} = req.query;
+        let { scope, redirect_uri, response_type, client_id, state, nonce, audience, code_challenge} = req.query;
         
 
         // Make sure we have values for these params:
@@ -123,7 +122,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             console.log("Active session: %O", req.session.profile);
             
             const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce,
-                           audience, secret_hash: client_registration.pwd_hash};
+                           code_challenge, audience, secret_hash: client_registration.pwd_hash};
             const code_ttl = 2 * 60; // 2 minutes TTL for this code
             await redisClient.set('oidc-code:' + code, JSON.stringify(data), 'ex', code_ttl);
             redirect_to(res, redirect_uri, {code, state});
@@ -142,7 +141,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
     router.post("/token", async (req, res) => {
         // See https://developer.okta.com/docs/reference/api/oidc/#token
-        let {code, redirect_uri, grant_type, client_id, client_secret} = req.body;
+        let {code, redirect_uri, grant_type, client_id, client_secret, code_verifier} = req.body;
         if (grant_type != "authorization_code" ) {
             res.status(401).json({error: 'unsupported_grant_type'});
             return;
@@ -156,6 +155,15 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         if (!redirect_uri || authReq.redirect_uri != redirect_uri) {
             res.status(401).json({error: 'invalid_grant'});
             return;
+        }
+        // Check Authorization Code flow with PKCE 
+        // See https://datatracker.ietf.org/doc/html/rfc7636#section-4.6 
+        if (authReq.code_challenge) {
+            code_verifier = code_verifier || '';
+            if (generators.codeChallenge(code_verifier) != authReq.code_challenge) {
+                res.status(401).json({ error: 'invalid_grant', error_description: 'S256 code_verifier is not correct' });
+                return;
+            }
         }
         
         // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
