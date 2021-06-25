@@ -8,7 +8,8 @@ const {redirect_to, validUrl} = require("../utils");
 const db = require('../db');
 
 const jwt = require('jsonwebtoken')
-const JSONWebKey = require('json-web-key' )
+const JSONWebKey = require('json-web-key' );
+const { response } = require('express');
 
 const HOST = config.myhost;
 
@@ -58,46 +59,29 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
     router.get("/auth", async (req, res) => {
         let { scope, redirect_uri, response_type, client_id, state, nonce} = req.query;
         
-        if (!response_type || response_type != "code") {
-            /* See https://tools.ietf.org/html/rfc6749#section-4.1.2.1 :
-            If the request fails due to a missing, invalid, or mismatching
-            redirection URI, or if the client identifier is missing or invalid,
-            the authorization server SHOULD inform the resource owner of the
-            error and MUST NOT automatically redirect the user-agent to the
-            invalid redirection URI.
-            */
-            res.status(400).render('idp_error', { user: null, error: "Invalid 'response_type'" });
-            return;
-        }
 
-        // Check client_id
-        // Client ids are actually UUIDs so first we check format:
+        // Make sure we have values for these params:
+        response_type = response_type || '';
         client_id = client_id || '';
-        if (!client_id.match(/[\da-fA-F]{8}\-[\da-fA-F]{4}\-[\da-fA-F]{4}\-[\da-fA-F]{4}\-[\da-fA-F]{12}/))
-        {
-            // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
-            res.status(400).render('idp_error', { user: null, error: "Invalid 'client_id'" });
-            return;
-        }
 
-        redirect_uri = redirect_uri || '';
-        if (! validUrl(redirect_uri))
-        {
-            // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
-            res.status(400).render('idp_error', { user: null, error: `Invalid 'redirect_uri' : '${redirect_uri}'` });
-            return;
-        }
 
-        // And then we check (and retrieve) the client registration info
-        // based on their id:
+        // Check client_id, and retrieve the client registration info
+        // based on this:
         let client_registration;
         try {
-            let {rows} = await db.query("SELECT * FROM clients WHERE active IS TRUE AND id=$1 AND redirect_uri=$2",
-                                        [client_id, redirect_uri]);
+            let {rows} = await db.query("SELECT * FROM clients WHERE active IS TRUE AND id=$1",
+                                        [client_id]);
 
             if (!rows || rows.length == 0) {
-                // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
-                res.status(400).render('idp_error', { user: null, error: `No client registration for client: '${client_id}' and redirect URI: '${redirect_uri}'` });
+
+                /* See https://tools.ietf.org/html/rfc6749#section-4.1.2.1 :
+                If the request fails due to a missing, invalid, or mismatching
+                redirection URI, or if the client identifier is missing or invalid,
+                the authorization server SHOULD inform the resource owner of the
+                error and MUST NOT automatically redirect the user-agent to the
+                invalid redirection URI.
+                */
+                res.status(400).render('idp_error', { user: null, error: `No active client registration for id: '${client_id}'` });
                 return;
             }
             client_registration = rows[0];
@@ -107,19 +91,32 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             res.status(500).send("Database error!!");
             return;
         }
+
+        // Check that client has sent the correct redirect uri:
+        redirect_uri = redirect_uri || '';
+        if (client_registration.redirect_uri != redirect_uri)
+        {
+            // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
+            res.status(400).render('idp_error', { user: null, error: `Invalid 'redirect_uri' : '${redirect_uri}'` });
+            return;
+        }
         
-        if (!client_registration || client_registration.redirect_uri != redirect_uri) {
-            
+
+        const requestedResponseTypes = response_type.trim().split(/\s+/);
+
+        if (! requestedResponseTypes.includes("code")) {
             // See https://tools.ietf.org/html/rfc6749#section-4.1.2.1
             // for error responses
             redirect_to(res, redirect_uri, {
                 error: "unsupported_response_type",
-                description: "This server supports only the authorization code flow",
+                description: "This server supports only the authorization code flow (for now)",
                 state
             });
             return;
         }
-        
+
+        response_type = requestedResponseTypes.includes("code") ? "code" : "token";
+
         if (!!req.session.profile) {
             const code = generators.random();
             console.log("Active session: %O", req.session.profile);
@@ -144,7 +141,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
     router.post("/token", async (req, res) => {
         // See https://developer.okta.com/docs/reference/api/oidc/#token
-        const {code, redirect_uri, grant_type, client_id} = req.body;
+        const {code, redirect_uri, grant_type, client_id, client_secret} = req.body;
         if (grant_type != "authorization_code" ) {
             res.status(401).json({error: 'unsupported_grant_type'});
             return;
@@ -166,9 +163,18 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
         // Check clients credentials (secret):
         // See https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1
+        // We first check the 'Authorization' header:
         const authHeader = req.get("Authorization")
-        const creds = authBasic.parse(authHeader);
-        if (!creds || ! await bcrypt.compare(creds.pass, authReq.secret_hash)) {
+        if (authHeader) {
+            const creds = authBasic.parse(authHeader);
+            client_secret = creds ? creds.pass : '';
+        }
+        // If no such header, we use the secret supplied in the params
+        // or an empty string:
+        else {
+            client_secret = client_secret || '';
+        }
+        if (! await bcrypt.compare(client_secret, authReq.secret_hash)) {
             console.log("Client credentials not valid! Authorization header:"+authHeader);
             // Error response: https://openid.net/specs/openid-connect-core-1_0.html#TokenErrorResponse
             res.status(400).json({error: "invalid_request"});
