@@ -57,12 +57,13 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
     });
 
     router.get("/auth", async (req, res) => {
-        let { scope, redirect_uri, response_type, client_id, state, nonce} = req.query;
+        let { scope, redirect_uri, response_type, client_id, state, nonce, audience} = req.query;
         
 
         // Make sure we have values for these params:
         response_type = response_type || '';
         client_id = client_id || '';
+        audience = audience || client_id; // The access token will have the 'aud' claim
 
 
         // Check client_id, and retrieve the client registration info
@@ -122,7 +123,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             console.log("Active session: %O", req.session.profile);
             
             const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce,
-                           secret_hash: client_registration.pwd_hash};
+                           audience, secret_hash: client_registration.pwd_hash};
             const code_ttl = 2 * 60; // 2 minutes TTL for this code
             await redisClient.set('oidc-code:' + code, JSON.stringify(data), 'ex', code_ttl);
             redirect_to(res, redirect_uri, {code, state});
@@ -141,7 +142,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
     router.post("/token", async (req, res) => {
         // See https://developer.okta.com/docs/reference/api/oidc/#token
-        const {code, redirect_uri, grant_type, client_id, client_secret} = req.body;
+        let {code, redirect_uri, grant_type, client_id, client_secret} = req.body;
         if (grant_type != "authorization_code" ) {
             res.status(401).json({error: 'unsupported_grant_type'});
             return;
@@ -191,7 +192,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             issuer: HOST, audience: authReq.client_id
         });
         
-        const jwtAccToken = newAccessToken(idToken.uid, authReq.client_id, TTL);
+        const jwtAccToken = newAccessToken(idToken.uid, authReq.audience, TTL);
         let response = {token_type : "Bearer", expires_in : TTL, 
                         nonce: authReq.nonce,
                         scope: authReq.scope,
