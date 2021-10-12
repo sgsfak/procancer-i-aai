@@ -87,7 +87,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
         // Check client_id, and retrieve the client registration info
         // based on this:
-        let [client_registration, error] = db_client_registration(client_id);
+        let [client_registration, error] = await db_client_registration(client_id);
         if (error) {
             console.log("%O", e);
             res.status(500).send("Database error!!");
