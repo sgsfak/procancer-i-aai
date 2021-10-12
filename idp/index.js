@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken')
 const JSONWebKey = require('json-web-key' );
 
 const HOST = config.myhost;
+const CONFID_CLIENTS_TTL = config.confidential_clients_ttl || 3600;
 
 function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
@@ -24,7 +25,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         return token;
     }
 
-    const db_client_registration = function(client_id) {
+    const db_client_registration = async function(client_id) {
         // Check client_id, and retrieve the client registration info
         // based on this:
         let client_registration = null;
@@ -40,6 +41,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             console.log("%O", e);
             error = e;
         }
+        // Golang conventions:
         return [client_registration, error];
     }
 
@@ -152,7 +154,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
     router.post("/token", async (req, res) => {
         // See https://developer.okta.com/docs/reference/api/oidc/#token
-        let {code, redirect_uri, grant_type, client_id, client_secret, code_verifier} = req.body;
+        let {code, redirect_uri, grant_type, client_id, client_secret, code_verifier, audience} = req.body;
 
         // Get clients supplied credentials:
         // See https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1
@@ -224,10 +226,10 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             return;
         }
 
-        if (grant_type == "client_credentials") {
+        else if (grant_type == "client_credentials") {
             // Check client_id, and retrieve the client registration info
             // based on this:
-            let [client_registration, error] = db_client_registration(client_id);
+            let [client_registration, error] = await db_client_registration(client_id);
             if (error) {
                 console.log("%O", e);
                 res.status(500).send("Database error!!");
@@ -240,10 +242,9 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 res.status(400).json({error: "invalid_request"});
                 return;
             }
-            const TTL = 2 * 3600;
             
-            const jwtAccToken = newAccessToken(client_id, client_id, TTL);
-            let response = {token_type : "Bearer", expires_in : TTL, 
+            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL);
+            let response = {token_type : "Bearer", expires_in : CONFID_CLIENTS_TTL, 
                             access_token: jwtAccToken};
             console.log("CliCreds Token response: %O", response);
             res.json(response);

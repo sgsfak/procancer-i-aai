@@ -213,7 +213,7 @@ app.get("/.well-known/openid-configuration", (req, res) => {
     const configuration = {
         response_types_supported: [ "code" ],
         introspection_endpoint: `${HOST}/oauth2/introspect`,
-        grant_types_supported: ["authorization_code"],
+        grant_types_supported: ["authorization_code", "client_credentials"],
         issuer: `${HOST}`,
         introspection_endpoint_auth_methods_supported: "none",
         response_modes_supported: ["query"],
