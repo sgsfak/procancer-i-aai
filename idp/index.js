@@ -243,7 +243,8 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 return;
             }
             
-            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL);
+            const scope = req.body.scope || 'access';
+            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL, scope);
             let response = {token_type : "Bearer", expires_in : CONFID_CLIENTS_TTL, 
                             access_token: jwtAccToken};
             console.log("CliCreds Token response: %O", response);
@@ -275,3 +276,4 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 }
 
 module.exports = idpRoutes;
+
