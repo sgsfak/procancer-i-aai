@@ -179,6 +179,10 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 res.status(401).json({error: 'invalid_grant'});
                 return;
             }
+            // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
+            // anyway..
+            await redisClient.del('oidc-code:' + code);
+
             const authReq = JSON.parse(authReqStored);
             if (!redirect_uri || authReq.redirect_uri != redirect_uri) {
                 res.status(401).json({error: 'invalid_grant'});
@@ -194,10 +198,6 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 }
             }
             
-            // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
-            // anyway..
-            await redisClient.del('oidc-code:' + code);
-
             // Check clients credentials (secret):
             if (! await bcrypt.compare(client_secret, authReq.secret_hash)) {
                 console.log("Client credentials not valid! Authorization header:"+authHeader);
