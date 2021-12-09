@@ -213,7 +213,7 @@ app.get("/.well-known/openid-configuration", (req, res) => {
     const configuration = {
         response_types_supported: [ "code" ],
         introspection_endpoint: `${HOST}/oauth2/introspect`,
-        grant_types_supported: ["authorization_code", "client_credentials"],
+        grant_types_supported: ["authorization_code", "client_credentials", "refresh_token"],
         issuer: `${HOST}`,
         introspection_endpoint_auth_methods_supported: "none",
         response_modes_supported: ["query"],
@@ -269,7 +269,7 @@ app.post("/access_token", routeAuth, multer.none(), (req, res) => {
     audience = audience || HOST;
     ttl = (ttl || 1) * 60 * 60;
     scopes = scopes || "read write";
-    const token = newAccessToken(req.session.profile.uid, audience, ttl, scopes);
+    const token = newAccessToken(req.session.profile.uid, audience, ttl, `${HOST}`, scopes);
     res.set('Cache-Control', 'no-store'); // No cache
     res.type('txt').send(token);
 });

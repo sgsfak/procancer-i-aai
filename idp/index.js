@@ -3,6 +3,7 @@ const express = require('express')
 const { generators } = require('openid-client');
 const authBasic = require('basic-auth');
 const bcrypt = require('bcrypt');
+const ulid = require('ulid');
 const {redirect_to, validUrl} = require("../utils");
 
 const db = require('../db');
@@ -15,10 +16,11 @@ const CONFID_CLIENTS_TTL = config.confidential_clients_ttl || 3600;
 
 function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
-    const newAccessToken = function(subject, audience, ttl, scope="read write") {
+    const newAccessToken = function(subject, audience, ttl, authorized_party, scope="read write") {
 
-        const accToken = {type: "access_token", scope};
+        const accToken = {type: "access_token", azp: authorized_party, scope};
         const token = jwt.sign(accToken, webKeyPrivate, {
+            jwtid: ulid.ulid(),
             algorithm: 'RS256', expiresIn: ttl,
             issuer: HOST, audience, subject
         });
@@ -106,7 +108,8 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         }
 
         // Check that client has sent the correct redirect uri:
-        redirect_uri = redirect_uri || '';
+        // (use by default the one already registered)
+        redirect_uri = redirect_uri || client_registration.redirect_uri;
         if (client_registration.redirect_uri != redirect_uri)
         {
             // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
@@ -154,7 +157,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
     router.post("/token", async (req, res) => {
         // See https://developer.okta.com/docs/reference/api/oidc/#token
-        let {code, redirect_uri, grant_type, client_id, client_secret, code_verifier, audience} = req.body;
+        let {code, redirect_uri, grant_type, client_id, client_secret, code_verifier, audience, refresh_token} = req.body;
 
         // Get clients supplied credentials:
         // See https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1
@@ -173,7 +176,35 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             client_secret = client_secret || '';
         }
 
-        if (grant_type == "authorization_code") {
+        const TTL = 30 * 60; // Access token lifetime: 30 minutes
+        const REFRESH_TTL = 24 * 60 * 60; // Refresh token lifetime: 24 hours
+
+        if (grant_type == "client_credentials") {
+            // Check client_id, and retrieve the client registration info
+            // based on this:
+            let [client_registration, error] = await db_client_registration(client_id);
+            if (error) {
+                console.log("%O", e);
+                res.status(500).send("Database error!!");
+                return;
+            }
+
+            // Check clients credentials (secret):
+            if (!client_registration || ! await bcrypt.compare(client_secret, client_registration.pwd_hash)) {
+                console.log("Client credentials not valid! Authorization header:"+authHeader);
+                res.status(400).json({error: "invalid_request"});
+                return;
+            }
+            
+            const scope = req.body.scope || 'access';
+            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL, client_id, scope);
+            let response = {token_type : "Bearer", expires_in : CONFID_CLIENTS_TTL, 
+                            access_token: jwtAccToken};
+            console.log("CliCreds Token response: %O", response);
+            res.json(response);
+            return;
+        }
+        else if (grant_type == "authorization_code") {
             const authReqStored = await redisClient.get('oidc-code:' + code);
             if (!authReqStored) {
                 res.status(401).json({error: 'invalid_grant'});
@@ -210,23 +241,31 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             idToken.type = "id_token";
             idToken.nonce = authReq.nonce;
             
-            const TTL = 3600;
             const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {
                 algorithm: 'RS256', expiresIn: TTL,
                 issuer: HOST, audience: authReq.client_id
             });
             
-            const jwtAccToken = newAccessToken(idToken.uid, authReq.audience, TTL);
+            const jwtAccToken = newAccessToken(idToken.uid, authReq.audience, TTL, authReq.client_id, authReq.scope);
+            const refreshToken = generators.random(32);
+            const refreshTokenInfo = {
+                uid: idToken.uid,
+                audience: authReq.audience,
+                scope: authReq.scope,
+                client_id: authReq.client_id,
+                d: Date.now(),
+                g: 0
+            }
             let response = {token_type : "Bearer", expires_in : TTL, 
                             nonce: authReq.nonce,
                             scope: authReq.scope,
-                            id_token: jwtIdToken, access_token: jwtAccToken};
+                            id_token: jwtIdToken, access_token: jwtAccToken, refresh_token: refreshToken};
+            await redisClient.set('tokens:refresh:'+refreshToken, JSON.stringify(refreshTokenInfo), 'ex', REFRESH_TTL);
             console.log("Token response: %O", response);
             res.json(response);
             return;
         }
-
-        else if (grant_type == "client_credentials") {
+        else if (grant_type == "refresh_token") {
             // Check client_id, and retrieve the client registration info
             // based on this:
             let [client_registration, error] = await db_client_registration(client_id);
@@ -242,17 +281,32 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 res.status(400).json({error: "invalid_request"});
                 return;
             }
-            
-            const scope = req.body.scope || 'access';
-            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL, scope);
-            let response = {token_type : "Bearer", expires_in : CONFID_CLIENTS_TTL, 
-                            access_token: jwtAccToken};
-            console.log("CliCreds Token response: %O", response);
+
+            // Retrieve refresh token info
+            let refreshTokenInfo = JSON.parse(await redisClient.get("tokens:refresh:"+refresh_token));
+            if (!refreshTokenInfo || client_id != refreshTokenInfo.client_id) {
+                res.status(400).json({error: "invalid_request"});
+                return;
+            }
+            await redisClient.del("tokens:refresh:"+refresh_token)
+            if (client_id != refreshTokenInfo.client_id) {
+                res.status(400).json({error: "invalid_request"});
+                return;
+            }
+            refreshTokenInfo.scope = req.body.scope || refreshTokenInfo.scope;
+            refreshTokenInfo.g += 1;
+            const jwtAccToken = newAccessToken(refreshTokenInfo.uid, refreshTokenInfo.audience, TTL, client_id, refreshTokenInfo.scope);
+            const refreshToken = generators.random(32);
+            let response = {token_type : "Bearer", expires_in : TTL, 
+                            scope: refreshTokenInfo.scope,
+                            access_token: jwtAccToken, refresh_token: refreshToken};
+            await redisClient.set('tokens:refresh:'+refreshToken, JSON.stringify(refreshTokenInfo), 'ex', REFRESH_TTL);
+            console.log("Refresh Token response: %O", response);
             res.json(response);
             return;
         }
 
-        // Only "authorization_code" and "client_credentials" are supported:
+        // Only "authorization_code", "client_credentials", and "refresh_token" are supported:
         res.status(401).json({error: 'unsupported_grant_type'});
         return;
     });
