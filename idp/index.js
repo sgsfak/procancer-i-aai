@@ -353,14 +353,16 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             const token = jwt.verify(jwtToken, webKeyPub);
             const uid = token.uid || token.sub;
             // let a = await redisClient.get("uid:"+uid);
-            let [error, a] = getUser(uid);
+            let [error, a] = await getUser(uid);
             if (error) {
                 res.status(500).json(JSON.parse({error}));
                 return;
             }
-            res.json(JSON.parse(a));
+            a['sub'] = uid;
+            res.json(a);
         }
         catch(error) {
+            console.log("Error %O", error);
             res.status(400).json({error});
         }
     });
