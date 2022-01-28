@@ -27,6 +27,29 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         return token;
     }
 
+    const getUser = async function(user_id) {
+        let user_data = null;
+        let error = null;
+        try {
+            const {rows} = await db.query("select * from users where user_id=$1",
+                                        [user_id]);
+            if (rows && rows.length != 0) {
+                user_data = rows[0];
+                Object.keys(user_data).forEach(key => {
+                    if (user_data[key] === null) {
+                      delete user_data[key];
+                    }
+                });
+            }
+        }
+        catch (e) {
+            console.log("%O", e);
+            error = e;
+        }
+        return [error, user_data];
+    }
+
+
     const db_client_registration = async function(client_id) {
         // Check client_id, and retrieve the client registration info
         // based on this:
@@ -237,7 +260,18 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 return;
             }
 
-            let idToken = JSON.parse(await redisClient.get("uid:"+authReq.uid));
+
+            let [error, user_data] = await getUser(authReq.uid);
+            if (error || !user_data) {console.log("Client credentials not valid! Authorization header:"+authHeader);
+                // Error response: https://openid.net/specs/openid-connect-core-1_0.html#TokenErrorResponse
+                res.status(500).json({error: error ? error : 'User not found'});
+                return;
+            }
+
+            delete user_data['elixir_id_token'];
+            user_data['sub'] = user_data['uid'] = authReq.uid;
+
+            let idToken = user_data; // JSON.parse(await redisClient.get("uid:"+authReq.uid));
             idToken.type = "id_token";
             idToken.nonce = authReq.nonce;
             
@@ -318,7 +352,12 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         try {
             const token = jwt.verify(jwtToken, webKeyPub);
             const uid = token.uid || token.sub;
-            let a = await redisClient.get("uid:"+uid);
+            // let a = await redisClient.get("uid:"+uid);
+            let [error, a] = getUser(uid);
+            if (error) {
+                res.status(500).json(JSON.parse({error}));
+                return;
+            }
             res.json(JSON.parse(a));
         }
         catch(error) {

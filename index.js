@@ -8,6 +8,7 @@ const Redis = require('ioredis')
 
 const {redirect_to} = require("./utils");
 const db = require('./db');
+const ulid = require('ulid');
 
 let RedisStore = require('connect-redis')(session)
 let redisClient = new Redis({keyPrefix: 'pca-aai:'});
@@ -131,6 +132,19 @@ app.get('/dologin', (req, res) => {
     res.redirect(u);
 });
 
+const findOrInsertUser = async function(elixirUid, idToken) {
+    const userId = ulid.ulid();
+    const {rows} = await db.query("INSERT INTO users(user_id, elixir_id, elixir_id_token) VALUES($1,$2,$3) ON CONFLICT (elixir_id) DO UPDATE SET elixir_id_token=EXCLUDED.elixir_id_token RETURNING *",
+                                  [userId, elixirUid, idToken]);
+    const user_data = rows[0];
+    Object.keys(user_data).forEach(key => {
+        if (user_data[key] === null) {
+          delete user_data[key];
+        }
+    });
+    return user_data;
+}
+
 app.get('/oidcb', async (req, res) => {
     const params = client.callbackParams(req);
     console.log("got cb");
@@ -149,10 +163,12 @@ app.get('/oidcb', async (req, res) => {
         const userInfo = await client.userinfo(access_token);
 
         console.log("%O", userInfo);
-        userInfo.uid = userInfo.sub; // XXX
-        req.session.profile = userInfo;
 
-        await redisClient.set("uid:" + userInfo.uid, JSON.stringify(userInfo));
+        req.session.profile = await findOrInsertUser(userInfo.sub, userInfo);
+        req.session.profile.uid = req.session.profile.user_id; // XXX
+        console.log("User %s logged in", req.session.profile.uid);
+
+        // await redisClient.set("uid:" + userInfo.uid, JSON.stringify(userInfo));
         
         if (req.session.continue) {
             const u = req.session.continue;
@@ -247,7 +263,7 @@ app.get("/.well-known/openid-configuration", (req, res) => {
 
 app.get("/doregister", (req, res)=> {
     redirect_to(res, "https://perun.elixir-czech.cz/registrar/", {
-        vo: 'elixir_test',
+        vo: 'elixir',
         targetnew: `${HOST}/login`,
         targetexisting: `${HOST}/login`});
 });
@@ -255,6 +271,34 @@ app.get("/doregister", (req, res)=> {
 
 app.get("/me", routeAuth, (req, res) => {
     res.json(req.session.profile);
+});
+
+
+
+app.get('/users', routeAuth, async (req, res) => {
+    try {
+        let {rows} = await db.query(
+            `SELECT user_id uid, elixir_id sub, user_verified,
+            name, email, email_verified, user_verified
+            FROM users`
+            );
+        return res.json(rows);
+    }
+    catch (e) {
+        console.log(e);
+        res.status(500).send("Internal database error");
+    }
+});
+
+app.get('/organizations', routeAuth, async (req, res) => {
+    try {
+        let {rows} = await db.query("SELECT id, name, full_name, country FROM organizations ORDER BY id ASC");
+        return res.json(rows);
+    }
+    catch (e) {
+        console.log(e);
+        res.status(500).send("Internal database error");
+    }
 });
 
 const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, webKeyPub, webKeyPrivate});
