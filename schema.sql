@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS users
     , user_verified BOOLEAN NOT NULL DEFAULT FALSE
     , elixir_id_token JSONB NOT NULL
     , is_admin BOOLEAN NOT NULL DEFAULT FALSE
+    , registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 
     -- the following are already reported by ELIXIR AAI
     -- See https://docs.google.com/document/d/1hD0lsxotLvPaML_CSydVX6rJ-zogAH2nRVl4ax4gW1o/edit

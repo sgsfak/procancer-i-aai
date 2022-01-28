@@ -191,14 +191,30 @@ app.get('/oidcb', async (req, res) => {
 });
 
 
+// A middleware that checks that the user is logged in:
 function routeAuth(req, res, next) {
     if (!!req.session.profile) {
         next();
     }
     else {
+        req.session.continue = `${HOST}${req.originalUrl}`;
         res.redirect("/login");
     }
 }
+
+// A middleware that checks that the user is an admin
+// It "wraps" routeAuth in order to check first that
+// the user is logged in:
+function adminAuth(req, res, next) {
+    routeAuth(req, res, function() {
+        if (!req.session.profile.is_admin) {
+            res.status(401).send("You are not authorized to access this resource");
+            return;
+        }
+        next();
+    });
+}
+
 
 
 app.get('/profile', routeAuth, (req, res) => {
@@ -274,15 +290,29 @@ app.get("/me", routeAuth, (req, res) => {
 });
 
 
-
-app.get('/users', routeAuth, async (req, res) => {
+app.get('/users', adminAuth, async (req, res) => {
     try {
         let {rows} = await db.query(
-            `SELECT user_id uid, elixir_id sub, user_verified,
-            name, email, email_verified, user_verified
-            FROM users`
+            `SELECT user_id uid, elixir_id, user_verified,
+            name, email, email_verified, user_verified, registered_at
+            FROM users ORDER BY 1 DESC`
             );
         return res.json(rows);
+    }
+    catch (e) {
+        console.log(e);
+        res.status(500).send("Internal database error");
+    }
+});
+
+app.get('/users/:uid', adminAuth, async (req, res) => {
+    const uid = req.params.uid;
+    try {
+        let {rows} = await db.query("SELECT * FROM users WHERE user_id=$1", [uid]);
+        if (rows.length == 0) {
+            return res.status(404).send(`User "${uid}" not found!`);
+        }
+        return res.json(rows[0]);
     }
     catch (e) {
         console.log(e);
