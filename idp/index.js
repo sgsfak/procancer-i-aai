@@ -159,6 +159,13 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         if (!!req.session.profile) {
             const code = generators.random();
             console.log("Active session: %O", req.session.profile);
+            // If the user is not "verified" by an admin, refuse access:
+            if (!req.session.profile['user_verified']) {
+                res.status(400).render('idp_error', { 
+                                user: req.session.profile, 
+                                error: "Your account is not ready yet, verification is pending..." });
+                return;
+            }
             
             const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce,
                            code_challenge, audience, secret_hash: client_registration.pwd_hash};
@@ -235,7 +242,8 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             }
             // Redis 6.2 supports getdel (https://redis.io/commands/getdel) ..
             // anyway..
-            await redisClient.del('oidc-code:' + code);
+            // XXX: Better let the `code` expire:
+            // await redisClient.del('oidc-code:' + code);
 
             const authReq = JSON.parse(authReqStored);
             if (!redirect_uri || authReq.redirect_uri != redirect_uri) {

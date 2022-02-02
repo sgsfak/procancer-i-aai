@@ -1,0 +1,31 @@
+{% extends "base.njk" %}
+{% block stylesheets %}
+{{ super() }}
+    <style>
+        .error {
+            background-color: #59584d;
+            color: #fbf1a2;
+            padding:0.2em 0.5em;
+            border-radius:3px
+        }
+    </style>
+{% endblock %}
+
+{% block body %}
+    <main class="container py-4 text-center">
+
+        <h1>
+            Login Error
+        </h1>
+        <p>
+            User Error or Invalid request sent by the client application: 
+            <span class="error">{{error}}</span>
+        </p>
+        <p>
+            Please check the  
+            <a href="https://openid.net/specs/openid-connect-core-1_0.html">specification</a>
+            and maybe contact admins of the ProCancer-I Identity Provider.
+        </p>
+    </main>
+    
+{% endblock %}

@@ -6,6 +6,8 @@ const multer = require("multer")()
 const fs = require('fs');
 const Redis = require('ioredis')
 
+const nunjucks = require("nunjucks")
+
 const {redirect_to} = require("./utils");
 const db = require('./db');
 const ulid = require('ulid');
@@ -51,7 +53,8 @@ app.use(session({
     store: new RedisStore({ client: redisClient })
 }));
 
-app.use(express.urlencoded({extended: true})); 
+app.use(express.urlencoded({extended: true}));
+app.set('json spaces', 2);
 
 let client;
 Issuer.discover('https://login.elixir-czech.org/oidc/')
@@ -74,11 +77,20 @@ Issuer.discover('https://login.elixir-czech.org/oidc/')
 .then(() => console.log(`ProCancer-I AAI listening at http://localhost:${port}`));
 
 app.use('/static', express.static('public', {maxAge: 60000 * 5}));
-app.set('view engine', 'blade');
+// app.set('view engine', 'blade');
+// set default express engine and extension:
+app.engine('html', nunjucks.render);
+app.set('view engine', 'njk');
+nunjucks.configure('views', {
+    autoescape: true,
+    express: app,
+    watch: false
+});
+
 
 function view(req, res, template, data={})
 {
-    const dataUser = {'user' : req.session.user ? req.session.user : null, ...data};
+    const dataUser = {'user' : req.session.profile ? req.session.profile : null, ...data};
     // console.log("Data: %O", dataUser);
     res.render(template, dataUser);
 }
@@ -218,7 +230,7 @@ function adminAuth(req, res, next) {
 
 
 app.get('/profile', routeAuth, (req, res) => {
-    view(req, res, 'profile', {profile: req.session.profile});
+    view(req, res, 'profile');
 });
 
 app.get("/logout", (req, res)=>{
@@ -231,12 +243,13 @@ app.get("/logout", (req, res)=>{
     // the OP MUST NOT perform post-logout redirection." 
     let { post_logout_redirect_uri, state} = req.query;
     req.session.destroy();
-    if (post_logout_redirect_uri) {
-        redirect_to(res, post_logout_redirect_uri, {state});
+
+    if (!post_logout_redirect_uri) {
+        post_logout_redirect_uri = `${HOST}/`;
     }
-    else {
-        res.redirect("/");
-    }
+    // logout from elixir as well:
+    let end_session_url = "https://login.elixir-czech.org/oidc/endsession";
+    redirect_to(res, end_session_url, {post_logout_redirect_uri});
 });
 
 
@@ -293,11 +306,13 @@ app.get("/me", routeAuth, (req, res) => {
 app.get('/users', adminAuth, async (req, res) => {
     try {
         let {rows} = await db.query(
-            `SELECT user_id uid, elixir_id, user_verified,
-            name, email, email_verified, user_verified, registered_at
+            `SELECT user_id uid, elixir_id, user_verified, is_admin,
+            name, email, email_verified, user_verified, registered_at,
+            to_char(registered_at, 'YYYY-MM-DD HH24:MI:SS TZ') registered_at_formatted
             FROM users ORDER BY 1 DESC`
             );
-        return res.json(rows);
+        // return res.json(rows);
+        view(req, res, "users", {users: rows});
     }
     catch (e) {
         console.log(e);
@@ -335,7 +350,7 @@ const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, 
 
 
 app.get("/access_token", routeAuth, (req, res) => {
-    view(req, res, 'access_token', {});
+    view(req, res, 'tokens');
 });
 
 app.post("/access_token", routeAuth, multer.none(), (req, res) => {

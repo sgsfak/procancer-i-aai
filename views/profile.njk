@@ -1,0 +1,71 @@
+{% extends "home.njk" %}
+{% block stylesheets %}
+{{ super() }}
+    <style>
+        .separated { padding-right:0.3em; }
+        th { background-color: #676565; color: white}
+        table {font-size: 0.7rem;}
+        th, td {border-bottom: 1px solid #ddd; padding: 8px;}
+        tr:nth-child(even) {background-color: #f2f2f2;}
+        main.container { display: flex; flex-direction: column; align-items: center;}
+     </style>
+    
+{% endblock %}
+
+{% block body %}
+    <main class="container">
+        <h2 class="title">
+            <a href="https://perun.elixir-czech.cz/fed/profile/" target="_blank">User Profile</a>
+        </h2>
+
+        <table class="claims">
+            <thead>
+                <tr>
+                    <th>Property</th> 
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Name</td>
+                    <td>{{user.name}}</td>
+                </tr>
+                <tr>
+                    <td>Email</td>
+                    <td>{{user.email}}</td>
+                </tr>
+                <tr>
+                    <td>Country</td>
+                    <td>
+                        {% for c in user.elixir_id_token.country %}
+                            <span>{{c}}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Home Organizations</td>
+                    <td>
+                        {% for org in user.elixir_id_token.schac_home_organization %}
+                            <span class="separated"> {{org}}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>External Affiliations</td>
+                    <td>
+                        {% for a in user.elixir_id_token.voperson_external_affiliation %}
+                            <span class="separated"> {{a}}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                <tr>
+                    <td>ORCid</td>
+                    <td>
+                        <a href="{{user.elixir_id_token.eduperson_orcid}}">{{user.elixir_id_token.eduperson_orcid}}</a>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+    </main>
+    {% endblock %}

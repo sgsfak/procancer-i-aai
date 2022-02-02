@@ -1,0 +1,77 @@
+{% extends "base.njk" %}
+{% block stylesheets %}
+{{ super() }}
+
+    <style>
+     input { 
+         color: #6c757d;
+         padding:0.375em 0.75rem;
+         border-radius:0.25rem;
+         border: 1px solid #ced4da;
+         line-height: 1.5;
+         border-color: .15s ease-in-out,box-shadow .15s ease-in-out;
+    }
+     input:focus { border-color: #86b7fe;}
+     .field { margin: 1rem 0;}
+     label { margin-right: 1em;}
+     form {
+         width: max(300px, 70%);
+         margin: 1rem 0;
+    }
+     .btn2 { 
+         margin:1rem auto;
+         text-decoration: none;
+         color: #fff !important;
+         padding:0.375em 0.75rem;
+         background-color: #0b5ed7;
+         border-radius:0.25rem;
+         border: 1px solid #ced4da;
+         line-height: 1.5;
+     }
+     #token {
+         display: block;
+         width: max(400px, 80%);
+         padding:0.75em 0.75rem;
+         background-color: #dcdcdd;
+    }
+     #result { display: none;}
+    </style>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }}
+    <script src="/static/js/app.js"></script>
+{% endblock %}
+
+{% block body %}
+    {{ super() }}
+
+    <main class="container py-4">
+        <h1 class="text-center">Create an Access Token</h1>
+
+        <form method="POST" autocomplete="off" onsubmit="createNewToken(event)">
+            <div class="field">
+                <label for="">Audience</label> 
+                <input name="audience", size="80">
+
+            </div>
+            <div class="field">
+                <label>Scopes</label>
+                <input name="scopes", size="50">
+            </div>
+            <div class="field">
+                <label>Duration (in hours)</label>
+                <input name="ttl", type="number", size="4", min="1", value="2">
+            </div>
+            <div class="field">
+                <button class="btn2">Submit</button>
+            </div>
+        </form>
+        <div id="result">
+            <textarea id="token" cols="30" rows="15" readonly="on"></textarea>
+            <button class="btn2" onclick="clipboardNewToken(event)">Copy to clipboard</button> 
+            <a href="https://jwt.ms/" class="btn2" target="_blank" rel="noopener noreferrer">Decode it here</a>
+        </div>
+
+    </main>
+{% endblock %}

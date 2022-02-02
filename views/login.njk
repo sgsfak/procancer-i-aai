@@ -1,0 +1,42 @@
+{% extends "home.njk" %}
+
+{% block stylesheets %}
+    {{ super() }}
+    <style>
+        .elixirbtns { 
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+    </style>
+{% endblock %}
+
+{% block body%}
+   {{super()}}
+    <div id="loginContent">
+        <main class="container py-4">
+            <p>
+                We are using the ELIXIR AAI federated identity provider for single sign-on 
+                for our users. If you don't have an ELIXIR id click the Register button to 
+                register in ELIXIR AAI.
+            </p>
+            <div class="elixirbtns">
+                <a class="elixirbtn" href="/dologin">
+                    <img src="/static/images/login-button-orange.png" width="120" />
+                </a>
+                <a class="elixirbtn" href="/doregister">
+                    <img src="/static/images/register-button.png" width="120" />
+                </a>
+
+            </div>
+            <p>
+                By clicking on the Registration or Login button, you agree that your personal data
+                will be processed and stored by PERUN (ELIXIR Czech Republic). Please read the 
+                <a href="https://drive.google.com/open?id=0B_vjNrTfEoKrZHVGdC0ySWY4WFE">AAI Privacy Policy</a>
+                The ELIXIR authentication system is provided by 
+                <a href="http://perun.cesnet.cz/">PERUN (ELIXIR Czech Republic)</a>
+                and ELIXIR Finland.
+            </p>
+        </main>
+    </div>
+{% endblock %}        
