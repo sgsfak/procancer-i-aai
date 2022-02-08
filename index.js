@@ -146,7 +146,10 @@ app.get('/dologin', (req, res) => {
 
 const findOrInsertUser = async function(elixirUid, idToken) {
     const userId = ulid.ulid();
-    const {rows} = await db.query("INSERT INTO users(user_id, elixir_id, elixir_id_token) VALUES($1,$2,$3) ON CONFLICT (elixir_id) DO UPDATE SET elixir_id_token=EXCLUDED.elixir_id_token RETURNING *",
+    const {rows} = await db.query(`INSERT INTO users(user_id, elixir_id, elixir_id_token) 
+                                   VALUES($1,$2,$3) ON CONFLICT (elixir_id)
+                                   DO UPDATE SET elixir_id_token=EXCLUDED.elixir_id_token 
+                                   RETURNING *, (xmax = 0) AS _is_new`,
                                   [userId, elixirUid, idToken]);
     const user_data = rows[0];
     Object.keys(user_data).forEach(key => {
@@ -178,9 +181,12 @@ app.get('/oidcb', async (req, res) => {
 
         req.session.profile = await findOrInsertUser(userInfo.sub, userInfo);
         req.session.profile.uid = req.session.profile.user_id; // XXX
+        if (req.session.profile._is_new) {
+            // Pub/sub through Redis for new users registrations:
+            await redisClient.publish("pca-aai:users-channel", JSON.stringify(req.session.profile));
+        }
         console.log("User %s logged in", req.session.profile.uid);
 
-        // await redisClient.set("uid:" + userInfo.uid, JSON.stringify(userInfo));
         
         if (req.session.continue) {
             const u = req.session.continue;
