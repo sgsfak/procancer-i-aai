@@ -9,9 +9,42 @@
 }
 
 :root {
-    --color-blue: rgb(39, 120, 170);
+    --color-blue: #2778aa;
     --color-accent: #551a8b;
+    --color-header: #f1f8fd;
+    --color-text: #0d1326;
+    --color-bg: white;
+    --color-shadow: gray;
 }
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-blue: rgb(19, 28, 33);
+        --color-accent: #c8a8e6;
+        --color-header: rgb(72 83 92);
+        --color-text: #d4d8e4;
+        --color-bg: #1c1b1b;
+        --color-shadow: transparent;
+        /* --color-shadow: #c3c6d7; */
+    }
+
+    /* Overwite some data tables styling : */
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_processing,
+    .dataTables_wrapper .dataTables_paginate,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:active
+    {
+            color: var(--color-text) !important;
+    }
+    table.dataTable tbody tr {
+        background-color: var(--color-bg) !important;
+    }
+  }
 
 *,*::before,*::after {
     box-sizing: border-box;
@@ -23,12 +56,14 @@ a, a:visited, a:active {
 
 body {
     margin:0;
-    min-height: 100vh;
+    /* min-height: 100vh; */
+    background-color: var(--color-bg);
+    color: var(--color-text);
 }
 
 html {
     font-family: 'Roboto Condensed', sans-serif;
-    color: #0d1326;
+    color: var(--color-text);
 }
 .container {
     max-width: 1200px;
@@ -41,17 +76,17 @@ html {
 
 header {
     padding:1.2em 0;
-    background-color: rgb(241, 248, 253);
-    box-shadow: 0 0 10px 1px grey;
+    background-color: var(--color-header);
+    box-shadow: 0 0 10px 1px var(--color-shadow);
 }
 
 
 .content {
-    min-height: calc(100vh - 4em);
+    min-height: calc(100vh - 3rem);
 }
 
 footer{
-    height:4em;
+    height: 3rem;
     width: 100%;
 }
 

@@ -1,7 +1,7 @@
 {% extends "base.njk" %}
 {% block scripts %}
     {{super()}}
-    <script   src="https://code.jquery.com/jquery-3.6.0.min.js"   integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="   crossorigin="anonymous"></script>
+    <script   src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
     <script src="https://cdn.datatables.net/1.11.4/js/jquery.dataTables.min.js"></script>
 {% endblock %}
 
@@ -19,7 +19,7 @@
  {{ super() }}
     <main class="container">
         <h1 class="text-center">Users list</h1>
-        <table id="users">
+        <table id="users" class="hover">
             <thead>
                 <tr>
                     <th>id</th>
@@ -36,8 +36,8 @@
                     <th><a href="users/{{u.uid}}">{{u.uid}}</a></th>
                     <th>{{u.name}}</th>
                     <th>{{u.email}}</th>
-                    <th>{{u.user_verified}}</th>
-                    <th>{{u.is_admin}}</th>
+                    <th>{{ {"true": "Yes", "false": "No"}[u.user_verified] }}</th>
+                    <th>{{ {"true": "Yes", "false": "No"}[u.is_admin] }}</th>
                     <th>{{u.registered_at_formatted}}</th>
                 </tr>
                 {% endfor %}
@@ -47,7 +47,8 @@
     <script>
         $(document).ready( function () {
             $('#users').DataTable({
-                "pageLength": 50
+                "pageLength": 50,
+                "order": [[ 5, "desc" ]]
             });
         });
     </script>

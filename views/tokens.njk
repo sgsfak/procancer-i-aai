@@ -52,16 +52,16 @@
         <form method="POST" autocomplete="off" onsubmit="createNewToken(event)">
             <div class="field">
                 <label for="">Audience</label> 
-                <input name="audience", size="80">
+                <input name="audience" value="ProstateNet" size="80">
 
             </div>
             <div class="field">
                 <label>Scopes</label>
-                <input name="scopes", size="50">
+                <input name="scopes" value="access" size="50">
             </div>
             <div class="field">
                 <label>Duration (in hours)</label>
-                <input name="ttl", type="number", size="4", min="1", value="2">
+                <input name="ttl", type="number" size="4", min="1", value="2">
             </div>
             <div class="field">
                 <button class="btn2">Submit</button>
