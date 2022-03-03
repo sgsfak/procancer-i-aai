@@ -31,8 +31,11 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         let user_data = null;
         let error = null;
         try {
-            const {rows} = await db.query("select * from users where user_id=$1",
-                                        [user_id]);
+            const {rows} = await db.query(`
+                    SELECT u.*, o.name AS org_name FROM users u 
+                    LEFT JOIN organizations o ON u.org_id=o.id
+                    WHERE user_id=$1`,
+                    [user_id]);
             if (rows && rows.length != 0) {
                 user_data = rows[0];
                 Object.keys(user_data).forEach(key => {

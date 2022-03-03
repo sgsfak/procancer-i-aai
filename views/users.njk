@@ -84,7 +84,9 @@
         function userAttChanged(uid, selectObject)
         {
             const name = selectObject.name;  
-            const value = name == "org_id" ? parseInt(selectObject.value) : selectObject.value == "true";
+            const value = name == "org_id" ? 
+                (selectObject.value == "0" ? null : parseInt(selectObject.value))
+                : selectObject.value == "true";
 
             const tr = selectObject.closest('tr');
             tr.classList.add("changed");
