@@ -1,17 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE IF NOT EXISTS clients (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    pwd_hash TEXT NOT NULL,
-    name TEXT NOT NULL,
-    redirect_uri TEXT NOT NULL,
-    description TEXT,
-    active boolean DEFAULT TRUE
-);
-
--- INSERT INTO clients(pwd_hash, name, redirect_uri) VALUES(crypt('password', gen_salt('bf', 10)), 'MOLGENIS', 'https://127.0.0.1/');
-
 CREATE TABLE IF NOT EXISTS organizations
     (id INT PRIMARY KEY
     , full_name TEXT NOT NULL
@@ -33,31 +22,46 @@ COMMENT ON COLUMN organizations.technical IS 'True if partner provides technical
 
 
 
-INSERT INTO organizations(id, full_name, name, country, elixir_aai, modeller)
+INSERT INTO organizations(id, full_name, name, country, elixir_aai, modeller, provider)
 VALUES
-  ( 1, 'IDRYMA TECHNOLOGIAS KAI EREVNAS', 'FORTH', 'Greece', TRUE, TRUE)
-, ( 2, 'FUNDACAO D. ANNA SOMMER CHAMPALIMAUD E DR. CARLOS MONTEZ CHAMPALIMAUD', 'FCHAMPALIMAUD', 'Portugal', FALSE, TRUE)
-, ( 3, 'STICHTING KATHOLIEKE UNIVERSITEIT', 'RadboudUMC', 'Netherlands', TRUE, TRUE)
-, ( 4, 'FUNDACION PARA LA INVESTIGACION DEL HOSPITAL UNIVERSITARIO LA FE DE LA COMUNIDAD VALENCIANA', 'HULAFE', 'Spain', FALSE, TRUE)
-, ( 5, 'UNIVERSITA DI PISA', 'UNIPI', 'Italy', TRUE, FALSE)
-, ( 6, 'INSTITUT JEAN PAOLI & IRENE CALMETTES', 'IPC', 'France', FALSE, FALSE)
-, ( 7, 'HACETTEPE UNIVERSITESI', 'HACETTEPE', 'Turkey', TRUE, FALSE)
-, ( 8, 'FUNDACIO INSTITUT D''INVESTIGACIO BIOMEDICA DE GIRONA DOCTOR JOSEP TRUETA', 'IDIBGI', 'Spain', FALSE, FALSE)
-, ( 9, 'JOAO CARLOS COSTA - DIAGNOSTICO PORIMAGEN, S.A.', 'JCC', 'Portugal', FALSE, FALSE)
-, (10, 'NACIONALINIS VEZIO INSTITUTAS', 'NCI', 'Lithuania', FALSE, FALSE)
-, (11, 'GENIKO ANTIKARKINIKO OGKOLOGIKO NOSOKOMEIO ATHINON O AGIOS SAVVAS', 'GAONA St Savvas', 'Greece', FALSE, FALSE)
-, (12, 'THE ROYAL MARSDEN NATIONAL HEALTH SERVICE TRUST', 'RMH', 'UK', FALSE, FALSE)
-, (13, 'QS INSTITUTO DE INVESTIGACION E INNOVACION SL', 'QUIRONSALUD', 'Spain', FALSE, FALSE)
-, (14, 'FONDAZIONE DEL PIEMONTE PER L''ONCOLOGIA', 'FPO', 'Italy', FALSE, TRUE)
-, (15, 'CONSIGLIO NAZIONALE DELLE RICERCHE', 'CNR', 'Italy', TRUE, TRUE)
-, (16, 'THE GENERAL HOSPITAL CORPORATION', 'QTIM', 'USA', FALSE, TRUE)
-, (17, 'BIOTRONICS 3D LIMITED', 'B3D', 'UK', FALSE, FALSE)
-, (18, 'ADVANTIS MEDICAL IMAGING MONOPROSOPI IDIOTIKI KEFALEOUCHIKI ETAIRIA', 'ADVANTIS', 'Greece', FALSE, FALSE)
-, (19, 'QUIBIM SOCIEDAD LIMITADA', 'QUIBIM', 'Spain', FALSE, FALSE)
-, (20, 'UNIVERSITAT WIEN', 'UNIVIE', 'Austria', TRUE, FALSE)
+  ( 1, 'IDRYMA TECHNOLOGIAS KAI EREVNAS', 'FORTH', 'Greece', TRUE, TRUE, FALSE)
+, ( 2, 'FUNDACAO D. ANNA SOMMER CHAMPALIMAUD E DR. CARLOS MONTEZ CHAMPALIMAUD', 'FCHAMPALIMAUD', 'Portugal', FALSE, TRUE, FALSE)
+, ( 3, 'STICHTING KATHOLIEKE UNIVERSITEIT', 'RadboudUMC', 'Netherlands', TRUE, TRUE, TRUE)
+, ( 4, 'FUNDACION PARA LA INVESTIGACION DEL HOSPITAL UNIVERSITARIO LA FE DE LA COMUNIDAD VALENCIANA', 'HULAFE', 'Spain', FALSE, TRUE, TRUE)
+, ( 5, 'UNIVERSITA DI PISA', 'UNIPI', 'Italy', TRUE, FALSE, TRUE)
+, ( 6, 'INSTITUT JEAN PAOLI & IRENE CALMETTES', 'IPC', 'France', FALSE, FALSE, TRUE)
+, ( 7, 'HACETTEPE UNIVERSITESI', 'HACETTEPE', 'Turkey', TRUE, FALSE, TRUE)
+, ( 8, 'FUNDACIO INSTITUT D''INVESTIGACIO BIOMEDICA DE GIRONA DOCTOR JOSEP TRUETA', 'IDIBGI', 'Spain', FALSE, FALSE, TRUE)
+, ( 9, 'JOAO CARLOS COSTA - DIAGNOSTICO PORIMAGEN, S.A.', 'JCC', 'Portugal', FALSE, FALSE, TRUE)
+, (10, 'NACIONALINIS VEZIO INSTITUTAS', 'NCI', 'Lithuania', FALSE, FALSE, TRUE)
+, (11, 'GENIKO ANTIKARKINIKO OGKOLOGIKO NOSOKOMEIO ATHINON O AGIOS SAVVAS', 'GAONA St Savvas', 'Greece', FALSE, FALSE, TRUE)
+, (12, 'THE ROYAL MARSDEN NATIONAL HEALTH SERVICE TRUST', 'RMH', 'UK', FALSE, FALSE, TRUE)
+, (13, 'QS INSTITUTO DE INVESTIGACION E INNOVACION SL', 'QUIRONSALUD', 'Spain', FALSE, FALSE, TRUE)
+, (14, 'FONDAZIONE DEL PIEMONTE PER L''ONCOLOGIA', 'FPO', 'Italy', FALSE, TRUE, TRUE)
+, (15, 'CONSIGLIO NAZIONALE DELLE RICERCHE', 'CNR', 'Italy', TRUE, TRUE, FALSE)
+, (16, 'THE GENERAL HOSPITAL CORPORATION', 'QTIM', 'USA', FALSE, TRUE, FALSE)
+, (17, 'BIOTRONICS 3D LIMITED', 'B3D', 'UK', FALSE, FALSE, FALSE)
+, (18, 'ADVANTIS MEDICAL IMAGING MONOPROSOPI IDIOTIKI KEFALEOUCHIKI ETAIRIA', 'ADVANTIS', 'Greece', FALSE, FALSE, FALSE)
+, (19, 'QUIBIM SOCIEDAD LIMITADA', 'QUIBIM', 'Spain', FALSE, FALSE, FALSE)
+, (20, 'UNIVERSITAT WIEN', 'UNIVIE', 'Austria', TRUE, FALSE, FALSE)
 
 ON CONFLICT (id) DO NOTHING;
 
+
+CREATE TABLE IF NOT EXISTS clients (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pwd_hash TEXT NOT NULL,
+    name TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    description TEXT,
+    active boolean DEFAULT TRUE,
+    org_id INT REFERENCES organizations(id)
+);
+
+COMMENT ON TABLE clients IS 'The "confidential" clients information, used mainly for the upload tool';
+COMMENT ON COLUMN clients.org_id IS 'The organization responsible for the specific deployment of the upload tool';
+
+-- INSERT INTO clients(pwd_hash, name, redirect_uri) VALUES(crypt('password', gen_salt('bf', 10)), 'MOLGENIS', 'https://127.0.0.1/');
 
 CREATE TABLE IF NOT EXISTS users
     ( user_id TEXT PRIMARY KEY
@@ -66,6 +70,9 @@ CREATE TABLE IF NOT EXISTS users
     , elixir_id_token JSONB NOT NULL
     , is_admin BOOLEAN NOT NULL DEFAULT FALSE
     , registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+
+    , years_experience INT DEFAULT 5
+    , org_id INT REFERENCES organizations(id)
 
     -- the following are already reported by ELIXIR AAI
     -- See https://docs.google.com/document/d/1hD0lsxotLvPaML_CSydVX6rJ-zogAH2nRVl4ax4gW1o/edit
@@ -95,5 +102,6 @@ COMMENT ON COLUMN users.user_id IS 'The unique user''s ID in the ProstateNet pla
 COMMENT ON COLUMN users.elixir_id IS 'The unique user''s ID in ELIXIR, submitted in the `sub` claim';
 COMMENT ON COLUMN users.elixir_id_token IS 'The JWT "id token" retrieved from ELIXIR federated AAI';
 COMMENT ON COLUMN users.user_verified IS 'True if the user has been verified and authorized to be a user of the platform';
+COMMENT ON COLUMN users.years_experience IS 'The years of work experience of this user -- mostly needed for radiologists performing annotation tasks';
 
 GRANT ALL ON ALL TABLES in schema "public" TO pcai_idp;

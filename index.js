@@ -56,6 +56,8 @@ app.use(session({
 app.use(express.urlencoded({extended: true}));
 app.set('json spaces', 2);
 
+app.use(express.json());
+
 let client;
 Issuer.discover('https://login.elixir-czech.org/oidc/')
 .then(issuer => {
@@ -311,19 +313,46 @@ app.get("/me", routeAuth, (req, res) => {
 
 app.get('/users', adminAuth, async (req, res) => {
     try {
-        let {rows} = await db.query(
-            `SELECT user_id uid, elixir_id, user_verified, is_admin,
-            name, email, email_verified, user_verified, registered_at,
-            to_char(registered_at, 'YYYY-MM-DD HH24:MI:SS TZ') registered_at_formatted
-            FROM users ORDER BY 1 DESC`
+        let users = await db.query(
+            `SELECT u.user_id uid, u.elixir_id, u.user_verified, u.is_admin,
+            u.name, u.email, u.email_verified, u.user_verified, u.registered_at,
+            to_char(u.registered_at, 'YYYY-MM-DD HH24:MI:SS TZ') registered_at_formatted,
+            u.org_id, o.name as org
+            FROM users u LEFT JOIN organizations o ON u.org_id=o.id
+            ORDER BY 1 DESC`
             );
+        let orgs = await db.query("SELECT id, name FROM organizations ORDER BY name ASC");
         // return res.json(rows);
-        view(req, res, "users", {users: rows});
+        view(req, res, "users", {users: users.rows, organizations: orgs.rows});
     }
     catch (e) {
         console.log(e);
         res.status(500).send("Internal database error");
     }
+});
+
+
+app.post('/users', adminAuth, async (req, res) => {
+    const dbConn = await db.getClient()
+    try {
+        await dbConn.query('BEGIN')
+
+        for (const [user_id, profile] of Object.entries(req.body)) {
+            for (const [field, value] of Object.entries(profile)) {
+                let cmd = `UPDATE users SET ${field}=$1 WHERE user_id=$2`
+                console.log(cmd, [value, user_id]);
+                await dbConn.query(cmd, [value, user_id]);
+            }
+        }
+        await dbConn.query('COMMIT')
+    } catch (e) {
+        await dbConn.query('ROLLBACK')
+        throw e
+    } finally {
+        await dbConn.release()
+    }
+
+    res.send(req.body);
 });
 
 app.get('/users/:uid', adminAuth, async (req, res) => {

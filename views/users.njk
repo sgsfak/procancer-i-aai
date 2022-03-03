@@ -11,13 +11,33 @@
 <style>
     main {
         padding: 5em 0;
+        --changed-color: rgb(237, 223, 223);
+    }
+    tr.changed {
+        background-color: var(--changed-color) !important;
+    }
+    #savebtn {
+        margin: 1em;
+        padding: 1em;
+        background-color:  var(--changed-color);
+        top: 1em;
+        right: 1em;
+        z-index: 100;
+        position: fixed;
+        display:  none;
+        border-radius: .375rem;
+        border:  2px solid rgba(246, 46, 46, 1);
+        cursor:  pointer;
     }
 </style>
 {% endblock %}
 
 {% block body %}
  {{ super() }}
-    <main class="container">
+    <main class="container relative">
+        <div id="savebtn" onclick="saveChanges()">
+            Save Changes
+        </div>
         <h1 class="text-center">Users list</h1>
         <table id="users" class="hover">
             <thead>
@@ -26,7 +46,8 @@
                     <th>Name</th>
                     <th>e-mail</th>
                     <th>Verified</th>
-                    <th>Admin</th>
+                    <!-- <th>Admin</th> -->
+                    <th>Organization</th>
                     <th>Registration Date</th>
                 </tr>
             </thead>
@@ -36,8 +57,22 @@
                     <th><a href="users/{{u.uid}}">{{u.uid}}</a></th>
                     <th>{{u.name}}</th>
                     <th>{{u.email}}</th>
-                    <th>{{ {"true": "Yes", "false": "No"}[u.user_verified] }}</th>
-                    <th>{{ {"true": "Yes", "false": "No"}[u.is_admin] }}</th>
+                    <th>
+                        <select name="user_verified" onchange="userAttChanged('{{u.uid}}', this)">
+                            <option value="true" {{"selected" if u.user_verified else ""}}>Yes</option>
+                            <option value="false" {{"" if u.user_verified else "selected"}}>No</option>
+                        </select>
+
+                        <!-- {{ {"true": "Yes", "false": "No"}[u.user_verified] }} -->
+                    </th>
+                    <th>
+                        <select name="org_id" onchange="userAttChanged('{{u.uid}}', this)">
+                            <option value="0">-- Choose an option</option>
+                            {% for o in organizations %} 
+                            <option value="{{o.id}}" {{"selected" if u.org_id==o.id else ""}}>{{o.name}}</option>
+                            {% endfor %}
+                        </select>
+                    </th>
                     <th>{{u.registered_at_formatted}}</th>
                 </tr>
                 {% endfor %}
@@ -45,10 +80,69 @@
         </table>
     </main>
     <script>
+        let changes_ = {};
+        function userAttChanged(uid, selectObject)
+        {
+            const name = selectObject.name;  
+            const value = name == "org_id" ? parseInt(selectObject.value) : selectObject.value == "true";
+
+            const tr = selectObject.closest('tr');
+            tr.classList.add("changed");
+            console.log(`User ${uid} att ${name} has value=${value}`);
+
+            let newChanges = changes_[uid] || {}
+            newChanges[name] = value;
+            changes_[uid] = newChanges;
+            $("#savebtn").show();
+        }
+
+        function saveChanges()
+        {
+            fetch("/users", {
+                method: 'POST'
+                , body: JSON.stringify(changes_)
+                , headers: {
+                    'Content-Type': 'application/json' 
+                }
+            })
+            .then(response => {
+                if (response.status != 200)
+                    throw Error(`Server returned ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+              console.log('Success:', data);
+
+              $("#savebtn").hide();
+              changes_ = {};
+              document.querySelectorAll("tr.changed").forEach(e => e.classList.remove('changed'));
+            })
+            .catch(error => {
+              console.error('Error:', error);
+            });
+        }
+
         $(document).ready( function () {
+            // From : https://datatables.net/examples/plug-ins/dom_sort.html
+            /* Create an array with the values of all the select options in a column */
+            $.fn.dataTable.ext.order['dom-select'] = function  ( settings, col )
+            {
+                return this.api().column( col, {order:'index'} ).nodes().map( function ( td, i ) {
+                    return $('select :selected', td).text();
+                });
+            }
             $('#users').DataTable({
                 "pageLength": 50,
-                "order": [[ 5, "desc" ]]
+                "order": [[ 5, "desc" ]], 
+
+                "columns": [
+                    null,
+                    null,
+                    null,
+                    { "orderDataType": "dom-select" },
+                    { "orderDataType": "dom-select" },
+                    null
+                ]
             });
         });
     </script>
