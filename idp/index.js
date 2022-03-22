@@ -333,11 +333,16 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 res.status(400).json({error: "invalid_request"});
                 return;
             }
-            await redisClient.del("tokens:refresh:"+refresh_token)
             if (client_id != refreshTokenInfo.client_id) {
+                await redisClient.del("tokens:refresh:"+refresh_token)
                 res.status(400).json({error: "invalid_request"});
                 return;
             }
+            // old refresh token expires in 5 minutes from now. We allow this time window
+            // so that if the client makes concurrent requests to refresh, these requests
+            // will not fail. Please note that this leaves a tiny probability for
+            // refresh token compromise..
+            await redisClient.expire("tokens:refresh:"+refresh_token, 5*60); 
             refreshTokenInfo.scope = req.body.scope || refreshTokenInfo.scope;
             refreshTokenInfo.g += 1;
             const jwtAccToken = newAccessToken(refreshTokenInfo.uid, refreshTokenInfo.audience, TTL, client_id, refreshTokenInfo.scope);

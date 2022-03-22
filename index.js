@@ -127,8 +127,7 @@ app.get('/dologin', (req, res) => {
     'eduperson_scoped_affiliation',
     'voperson_external_affiliation',
     'eduperson_entitlement',
-    'eduperson_orcid',
-    'ga4gh_passport_v1'];
+    'eduperson_orcid'];
     
     const nonce = generators.random();
     req.session.nonce = nonce;
