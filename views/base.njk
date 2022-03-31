@@ -11,28 +11,46 @@
     {% endblock %}
 </head>
 <body>
+    <div class="big-logo">
+        <div class="container" style="display: flex; align-items: center; padding: 8px 0">
+            <div class="et_pb_module et_pb_image et_pb_image_0_tb_header et_pb_image_sticky">
+                <span class="et_pb_image_wrap "><img loading="lazy" width="197" height="64" src="https://prostatenet.eu/wp-content/uploads/2022/03/procancer-i-logo.png" alt="" title="procancer-i-logo" class="wp-image-12"></span>
+            </div><div class="" style="padding:12px 24px; margin-right: 24px; margin-left: 24px;border-left: 1px solid rgb(51, 51, 51);">
+                <div class="et_pb_text_inner"><p><span style="white-space: pre-wrap;">An AI Platform integrating imaging data and models, supporting precision care through prostate cancer’s continuum</span></p></div>
+            </div>
+        </div><div class="et_pb_column et_pb_column_1_4 et_pb_column_1_tb_header  et_pb_css_mix_blend_mode_passthrough et-last-child et_pb_column_empty">
+        </div>
+    </div>
+
     <div class="content">
         {% block header %}
             <header>
                 <div class="container" id="nav">
-                    <div id="logo">
-                        <a href="https://www.procancer-i.eu/"><img src="/static/images/logo.png" alt="" srcset=""></a>
+                    <div id="logo" class="logo">
+                        <a href="https://prostatenet.eu/"><img src="https://prostatenet.eu/wp-content/uploads/2022/03/ProstateNet-logo-transparent-white.png" alt="" srcset=""></a>
                     </div>
-                    <div id="more">
+
+                  <input id="mobileNav" type="checkbox">
+                  <label for="mobileNav"></label>
+                  <nav>
+                    <ul>
+
                         {% if user %}
-                            <a href="/profile" style="display: flex;justify-content: center;" class="profBtn">
+                            <li><a href="/profile" style="display: flex;justify-content: center;" class="profBtn">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="user icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                 <span class="username">{{user.name}}</span>
-                            </a>
+                            </a></li>
                             {% if user.is_admin %}
-                                <a href="/users" class="btn">Users</a>
+                                <li><a href="/users" class="">Users</a></li>
+                                <li><a href="/access_token" class="">Tokens</a></li>
                             {% endif %}
-                            <a href="/access_token" class="btn">Tokens</a>
-                            <a href="/logout" class="btn">Logout</a>
+                            <li><a href="https://perun.elixir-czech.cz/fed/profile/#identities" class="">Link accounts</a></li>
+                            <li><a href="/logout" class="">Logout</a></li>
                         {% else %}
-                            <a href="/login" class="btn">Sign In</a>
+                            <li><a href="/login" class="">Sign In</a></li>
                         {% endif %}
-                    </div>
+                    </ul>
+                </nav>
                 </div>
             </header>
         {% endblock %}

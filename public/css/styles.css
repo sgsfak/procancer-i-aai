@@ -10,23 +10,13 @@
 
 :root {
     --color-blue: #2778aa;
-    --color-accent: #551a8b;
-    --color-header: #f1f8fd;
-    --color-text: #0d1326;
-    --color-bg: white;
+    --color-accent: #2ea3f2;
+    --color-header: #c4c4c4;
+    --color-text: white;
+    --color-bg: #161f28;
     --color-shadow: gray;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --color-blue: rgb(19, 28, 33);
-        --color-accent: #c8a8e6;
-        --color-header: rgb(72 83 92);
-        --color-text: #d4d8e4;
-        --color-bg: #1c1b1b;
-        --color-shadow: transparent;
-        /* --color-shadow: #c3c6d7; */
-    }
 
     /* Overwite some data tables styling : */
 
@@ -44,7 +34,6 @@
     table.dataTable tbody tr {
         background-color: var(--color-bg) !important;
     }
-  }
 
 *,*::before,*::after {
     box-sizing: border-box;
@@ -58,6 +47,10 @@ body {
     margin:0;
     /* min-height: 100vh; */
     background-color: var(--color-bg);
+    color: var(--color-text);
+}
+
+input {
     color: var(--color-text);
 }
 
@@ -83,16 +76,20 @@ html {
 #logo img {
     height: 3em;
 }
-
+.big-logo {
+    background-color: var(--color-header);
+    color:  #666;
+    height:  6rem;
+}
 header {
     padding:1.2em 0;
-    background-color: var(--color-header);
-    box-shadow: 0 0 10px 1px var(--color-shadow);
+    /*background-color: var(--color-header);
+    box-shadow: 0 0 10px 1px var(--color-shadow);*/
 }
 
 
 .content {
-    min-height: calc(100vh - 3rem);
+    min-height: calc(100vh - 9rem);
 }
 
 footer{
@@ -100,7 +97,7 @@ footer{
     width: 100%;
 }
 
-
+/*
 #nav {
     display: flex;
     justify-content: space-around;
@@ -115,7 +112,7 @@ footer{
     display: inline-block;
     padding-left: 1em;
 }
-
+*/
 .btn {
     display: inline-block;
     border: 1px solid gray;
@@ -137,10 +134,6 @@ footer{
     padding-left: 1rem;
 }
 
-#more {
-    display: flex;
-    align-items: center;
-}
 
 svg.user {
     width: 1em;
@@ -161,9 +154,6 @@ svg.user {
     justify-content: center;
 }
 
-#nav #more > * + * {
-    margin-left: 0.5em;
-}
 
 .username {
     display: none;
@@ -175,14 +165,39 @@ svg.user {
     text-decoration: none;
     position:relative;
 }
-.profBtn:hover::before {
+nav li a {
+    position:  relative;
+    color:  var(--color-text) !important;
+    text-decoration: none;
+}
+nav li a::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 7px;
+    width: 0%;
+    background-color: #ffffffcc;
+    height: 0.2em;
+    transition: 200ms ease-in;
+}
+nav li a:hover {
+    color:  hsla(0,0%,100%,.8);
+}
+nav li a:hover::before {
+    left: 16%;
+    width: 68%;
+}
+/*
+nav li a:hover::before {
     content: '';
     width: 100%;
     background-color: var(--color-accent);
     height: 0.2em;
     position: absolute;
     bottom: -7px;
-}
+    left:  0;
+
+}*/
 
 
 footer .links {
@@ -196,7 +211,99 @@ footer .links {
     padding: 0.5em;
 }
 
-@media screen and (min-width:640px) {
+header {
+  overflow: hidden;
+  /*background: var(--color-header);*/
+}
+
+header a, header label {
+  display: block;
+  padding: 20px;
+  color: var(--color-text);
+  text-decoration: none;
+  line-height: 20px;
+}
+
+header a:hover, header label:hover { color: #aaa; }
+
+header label {
+  float: right;
+  padding: 18px 20px;
+  cursor: pointer;
+}
+
+header label:after {
+  content: "\2261";
+  font-size: 1.8em;
+}
+
+.logo {
+  float: left;
+  font-weight: bold;
+  font-size: 1.5em;
+}
+  
+nav {
+  float: right;
+  max-height: 0;
+  width: 100%;
+  -webkit-transition: max-height 0.3s; 
+     -moz-transition: max-height 0.3s;
+       -o-transition: max-height 0.3s;
+          transition: max-height 0.3s;
+}
+
+nav ul {
+  margin: 0;
+  padding: 10px;
+}
+  
+nav li {
+  display: block;
+  text-align: center;
+  font-size: 1.2rem;
+}
+  
+nav a {
+  padding: 10px;
+  width: 100%;
+}
+
+#mobileNav { display: none; }
+
+#mobileNav:checked ~ nav {
+  max-height: 300px; /* This can be anything bigger than your nav height. The transition duration works with this */
+}
+
+@media only screen and (min-width: 700px) {
+  
+    header label { display: none; }
+  
+    #nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    nav {
+        width: auto;
+        max-height: none;
+    }
+
+    nav ul {
+        padding: 0;
+        padding-right: 10px;
+    }
+
+    nav li {
+        display: inline-block;
+        text-align: left;
+    }
+
+    header nav a {
+        display: inline-block;
+        padding: 20px 10px;
+        width: auto;
+    }
     
     .profBtn {
         font-size: 1.2rem;
