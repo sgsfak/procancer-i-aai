@@ -15,6 +15,7 @@
     --color-text: white;
     --color-bg: #161f28;
     --color-shadow: gray;
+    --color-bg-changed: rgb(108, 63, 63);
 }
 
 
@@ -45,13 +46,16 @@ a, a:visited, a:active {
 
 body {
     margin:0;
-    /* min-height: 100vh; */
+    min-height: 100vh; 
+    display: flex;
+    flex-direction: column;
     background-color: var(--color-bg);
     color: var(--color-text);
 }
 
-input {
+input , select {
     color: var(--color-text);
+    background-color: transparent;
 }
 
 html {
@@ -76,21 +80,34 @@ html {
 #logo img {
     height: 3em;
 }
-.big-logo {
+
+#preamble {
     background-color: var(--color-header);
-    color:  #666;
-    height:  6rem;
+
 }
+.big-logo {
+    color:  #666;
+    display: flex;
+    flex-direction: column; 
+    align-items: center;
+    justify-content: center;
+    padding: 8px 0
+}
+
+.big-logo .descr {
+    padding:12px; 
+    text-align: center;
+}
+
+
 header {
     padding:1.2em 0;
     /*background-color: var(--color-header);
     box-shadow: 0 0 10px 1px var(--color-shadow);*/
+/*    position: sticky;
+    top: 0;*/
 }
 
-
-.content {
-    min-height: calc(100vh - 9rem);
-}
 
 footer{
     height: 3rem;
@@ -275,10 +292,29 @@ nav a {
   max-height: 300px; /* This can be anything bigger than your nav height. The transition duration works with this */
 }
 
+.content {
+    margin: 0 0 auto 0;
+}
+
 @media only screen and (min-width: 700px) {
   
     header label { display: none; }
   
+    .big-logo {
+        height:  6rem;
+        flex-direction: row;
+    }
+
+    .big-logo .descr {
+        padding:12px 24px; 
+        margin-right: 24px; 
+        margin-left: 24px;
+        border-left: 1px solid rgb(51, 51, 51);
+    }
+
+    .content {
+        /*min-height: calc(100vh - 9rem);*/
+    }
     #nav {
         display: flex;
         justify-content: space-between;

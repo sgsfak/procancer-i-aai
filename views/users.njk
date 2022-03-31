@@ -11,15 +11,14 @@
 <style>
     main {
         padding: 5em 0;
-        --changed-color: rgb(237, 223, 223);
     }
-    tr.changed {
-        background-color: var(--changed-color) !important;
+    tr.user.changed {
+        background-color: var(--color-bg-changed) !important;
     }
     #savebtn {
         margin: 1em;
         padding: 1em;
-        background-color:  var(--changed-color);
+        background-color:  var(--color-bg-changed);
         top: 1em;
         right: 1em;
         z-index: 100;
@@ -53,7 +52,7 @@
             </thead>
             <tbody>
                 {% for u in users %} 
-                <tr>
+                <tr class="user">
                     <th><a href="users/{{u.uid}}">{{u.uid}}</a></th>
                     <th>{{u.name}}</th>
                     <th>{{u.email}}</th>
