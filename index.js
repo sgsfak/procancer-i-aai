@@ -2,6 +2,8 @@ const config = require('config')
 const { Issuer, generators, custom } = require('openid-client');
 const session = require('express-session')
 const express = require('express')
+const helmet = require("helmet")
+const crypto = require("crypto")
 const multer = require("multer")()
 const fs = require('fs');
 const Redis = require('ioredis')
@@ -44,6 +46,19 @@ custom.setHttpOptionsDefaults({
 // See how-to-create-RS256-keys.txt
 const webKeyPub = fs.readFileSync('jwtRS256.key.pub');
 const webKeyPrivate = fs.readFileSync('jwtRS256.key');
+
+// Sets the `script-src` directive to "'self' 'nonce-e33ccde670f149c1789b1e1e113b0916'" (or similar)
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
+  next();
+});
+app.use(helmet.contentSecurityPolicy({
+    useDefaults: true,
+    directives: {
+      scriptSrc: ["'self'", "https://code.jquery.com/", "https://cdn.datatables.net",
+                  (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      imgSrc: ["'self'", "https://prostatenet.eu/", "https://cdn.datatables.net"]
+  }}));
 
 app.use(session({
     name: "aai-sid",
@@ -92,7 +107,7 @@ nunjucks.configure('views', {
 
 function view(req, res, template, data={})
 {
-    const dataUser = {'user' : req.session.profile ? req.session.profile : null, ...data};
+    const dataUser = {'cspNonce':res.locals.cspNonce, 'user' : req.session.profile ? req.session.profile : null, ...data};
     // console.log("Data: %O", dataUser);
     res.render(template, dataUser);
 }

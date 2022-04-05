@@ -1,13 +1,14 @@
 {% extends "base.njk" %}
 {% block scripts %}
     {{super()}}
-    <script   src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
-    <script src="https://cdn.datatables.net/1.11.4/js/jquery.dataTables.min.js"></script>
+    <!-- created by https://www.srihash.org/ -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js" integrity="sha384-ficRBwtap/VLzILv81vIvgp30PoJYnlCm96tPpNYHXAf+h9SIThOZxxIzRUzbpAh" crossorigin="anonymous"></script>
 {% endblock %}
 
 {% block stylesheets %} 
 {{super()}}
-<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.4/css/jquery.dataTables.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css" integrity="sha384-yT2pwyD9a3Oee/HtjWTccnRmchDWH2EDHjzH7gwf8yAK0RilKFL164FCHX9fzlxh" crossorigin="anonymous">
 <style>
     main {
         padding: 5em 0;
@@ -34,7 +35,7 @@
 {% block body %}
  {{ super() }}
     <main class="container relative">
-        <div id="savebtn" onclick="saveChanges()">
+        <div id="savebtn">
             Save Changes
         </div>
         <h1 class="text-center">Users list</h1>
@@ -57,7 +58,7 @@
                     <th>{{u.name}}</th>
                     <th>{{u.email}}</th>
                     <th>
-                        <select name="user_verified" onchange="userAttChanged('{{u.uid}}', this)">
+                        <select class="modField" data-uid="{{u.uid}}" name="user_verified">
                             <option value="true" {{"selected" if u.user_verified else ""}}>Yes</option>
                             <option value="false" {{"" if u.user_verified else "selected"}}>No</option>
                         </select>
@@ -65,7 +66,7 @@
                         <!-- {{ {"true": "Yes", "false": "No"}[u.user_verified] }} -->
                     </th>
                     <th>
-                        <select name="org_id" onchange="userAttChanged('{{u.uid}}', this)">
+                        <select class="modField" data-uid="{{u.uid}}" name="org_id">
                             <option value="0">-- Choose an option</option>
                             {% for o in organizations %} 
                             <option value="{{o.id}}" {{"selected" if u.org_id==o.id else ""}}>{{o.name}}</option>
@@ -78,8 +79,13 @@
             </tbody>
         </table>
     </main>
-    <script>
+    <script nonce="{{cspNonce}}">
         let changes_ = {};
+
+        document.querySelectorAll(".modField").forEach(a => a.addEventListener('change', function(evt) {
+            userAttChanged(evt.target.dataset.uid, evt.target);
+        }));
+
         function userAttChanged(uid, selectObject)
         {
             const name = selectObject.name;  
@@ -97,7 +103,7 @@
             $("#savebtn").show();
         }
 
-        function saveChanges()
+        document.getElementById('savebtn').addEventListener('click', function saveChanges()
         {
             fetch("/users", {
                 method: 'POST'
@@ -121,7 +127,7 @@
             .catch(error => {
               console.error('Error:', error);
             });
-        }
+        });
 
         $(document).ready( function () {
             // From : https://datatables.net/examples/plug-ins/dom_sort.html
