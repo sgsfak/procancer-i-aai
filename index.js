@@ -403,11 +403,10 @@ app.get("/access_token", routeAuth, (req, res) => {
 });
 
 app.post("/access_token", routeAuth, multer.none(), (req, res) => {
-    let { audience, ttl, scopes } = req.body;
-    audience = audience || HOST;
+    let {ttl, scopes } = req.body;
     ttl = (ttl || 1) * 60 * 60;
     scopes = scopes || "read write";
-    const token = newAccessToken(req.session.profile.uid, audience, ttl, `${HOST}`, scopes);
+    const token = newAccessToken(req.session.profile.uid, ttl, `${HOST}`, scopes);
     res.set('Cache-Control', 'no-store'); // No cache
     res.type('txt').send(token);
 });

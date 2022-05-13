@@ -13,16 +13,17 @@ const JSONWebKey = require('json-web-key' );
 
 const HOST = config.myhost;
 const CONFID_CLIENTS_TTL = config.confidential_clients_ttl || 3600;
+const AUDIENCE = 'ProstateNet';
 
 function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
-    const newAccessToken = function(subject, audience, ttl, authorized_party, scope="read write") {
+    const newAccessToken = function(subject, ttl, authorized_party, scope="read write") {
 
         const accToken = {type: "access_token", azp: authorized_party, scope};
         const token = jwt.sign(accToken, webKeyPrivate, {
             jwtid: ulid.ulid(),
             algorithm: 'RS256', expiresIn: ttl,
-            issuer: HOST, audience, subject
+            issuer: HOST, audience: AUDIENCE, subject
         });
         return token;
     }
@@ -230,7 +231,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             }
             
             const scope = req.body.scope || 'access';
-            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL, client_id, scope);
+            const jwtAccToken = newAccessToken(client_id, CONFID_CLIENTS_TTL, client_id, scope);
             let response = {token_type : "Bearer", expires_in : CONFID_CLIENTS_TTL, 
                             access_token: jwtAccToken};
             console.log("CliCreds Token response: %O", response);
@@ -291,7 +292,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 issuer: HOST, audience: authReq.client_id
             });
             
-            const jwtAccToken = newAccessToken(idToken.uid, authReq.audience, TTL, authReq.client_id, authReq.scope);
+            const jwtAccToken = newAccessToken(idToken.uid, TTL, authReq.client_id, authReq.scope);
             const refreshToken = generators.random(32);
             const refreshTokenInfo = {
                 uid: idToken.uid,
@@ -345,7 +346,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             await redisClient.expire("tokens:refresh:"+refresh_token, 5*60); 
             refreshTokenInfo.scope = req.body.scope || refreshTokenInfo.scope;
             refreshTokenInfo.g += 1;
-            const jwtAccToken = newAccessToken(refreshTokenInfo.uid, refreshTokenInfo.audience, TTL, client_id, refreshTokenInfo.scope);
+            const jwtAccToken = newAccessToken(refreshTokenInfo.uid, TTL, client_id, refreshTokenInfo.scope);
             const refreshToken = generators.random(32);
             let response = {token_type : "Bearer", expires_in : TTL, 
                             scope: refreshTokenInfo.scope,
