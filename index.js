@@ -412,4 +412,8 @@ app.post("/access_token", routeAuth, multer.none(), (req, res) => {
 });
 
 
+app.get("/oob", routeAuth, (req, res) => {
+    view(req, res, 'oob', req.query);
+});
+
 app.use("/oauth2", oauthRouter);

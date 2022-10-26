@@ -137,7 +137,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         // Check that client has sent the correct redirect uri:
         // (use by default the one already registered)
         redirect_uri = redirect_uri || client_registration.redirect_uri;
-        if (client_registration.redirect_uri != redirect_uri)
+        if (client_registration.redirect_uri != redirect_uri && redirect_uri != 'urn:ietf:wg:oauth:2.0:oob')
         {
             // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
             res.status(400).render('idp_error', { user: null, error: `Invalid 'redirect_uri' : '${redirect_uri}'` });
@@ -175,7 +175,9 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                            code_challenge, audience, secret_hash: client_registration.pwd_hash};
             const code_ttl = 2 * 60; // 2 minutes TTL for this code
             await redisClient.set('oidc-code:' + code, JSON.stringify(data), 'ex', code_ttl);
-            redirect_to(res, redirect_uri, {code, state});
+            redirect_to(res,
+                        redirect_uri == 'urn:ietf:wg:oauth:2.0:oob' ? `${HOST}/oob` : redirect_uri,
+                        {code, state});
             return;
         }
         else {
