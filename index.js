@@ -313,8 +313,8 @@ app.get("/.well-known/openid-configuration", (req, res) => {
 });
 
 app.get("/doregister", (req, res)=> {
-    redirect_to(res, "https://perun.elixir-czech.cz/registrar/", {
-        vo: 'elixir',
+    redirect_to(res, "https://signup.aai.lifescience-ri.eu/fed/registrar/", {
+        vo: 'lifescience',
         targetnew: `${HOST}/login`,
         targetexisting: `${HOST}/login`});
 });

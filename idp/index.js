@@ -211,7 +211,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         }
 
         const TTL = 30 * 60; // Access token lifetime: 30 minutes
-        const REFRESH_TTL = 24 * 60 * 60; // Refresh token lifetime: 24 hours
+        const REFRESH_TTL = 5*24 * 60 * 60; // Refresh token lifetime: 5 days
 
         if (grant_type == "client_credentials") {
             // Check client_id, and retrieve the client registration info
@@ -316,7 +316,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             // based on this:
             let [client_registration, error] = await db_client_registration(client_id);
             if (error) {
-                console.log("%O", e);
+                console.log("%O", error);
                 res.status(500).send("Database error!!");
                 return;
             }
