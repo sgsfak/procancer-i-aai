@@ -2,6 +2,8 @@ const config = require('config')
 const { Issuer, generators, custom } = require('openid-client');
 const session = require('express-session')
 const express = require('express')
+const helmet = require("helmet")
+const crypto = require("crypto")
 const multer = require("multer")()
 const fs = require('fs');
 const Redis = require('ioredis')
@@ -45,6 +47,19 @@ custom.setHttpOptionsDefaults({
 const webKeyPub = fs.readFileSync('jwtRS256.key.pub');
 const webKeyPrivate = fs.readFileSync('jwtRS256.key');
 
+// Sets the `script-src` directive to "'self' 'nonce-e33ccde670f149c1789b1e1e113b0916'" (or similar)
+app.use((req, res, next) => {
+  res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
+  next();
+});
+app.use(helmet.contentSecurityPolicy({
+    useDefaults: true,
+    directives: {
+      scriptSrc: ["'self'", "https://code.jquery.com/", "https://cdn.datatables.net",
+                  (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      imgSrc: ["'self'", "https://prostatenet.eu/", "https://cdn.datatables.net"]
+  }}));
+
 app.use(session({
     name: "aai-sid",
     unset: "destroy",
@@ -59,7 +74,8 @@ app.set('json spaces', 2);
 app.use(express.json());
 
 let client;
-Issuer.discover('https://login.elixir-czech.org/oidc/')
+//Issuer.discover('https://login.elixir-czech.org/oidc/')
+Issuer.discover('https://login.aai.lifescience-ri.eu/oidc/')
 .then(issuer => {
     console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
     
@@ -92,7 +108,7 @@ nunjucks.configure('views', {
 
 function view(req, res, template, data={})
 {
-    const dataUser = {'user' : req.session.profile ? req.session.profile : null, ...data};
+    const dataUser = {'cspNonce':res.locals.cspNonce, 'user' : req.session.profile ? req.session.profile : null, ...data};
     // console.log("Data: %O", dataUser);
     res.render(template, dataUser);
 }
@@ -127,8 +143,7 @@ app.get('/dologin', (req, res) => {
     'eduperson_scoped_affiliation',
     'voperson_external_affiliation',
     'eduperson_entitlement',
-    'eduperson_orcid',
-    'ga4gh_passport_v1'];
+    'eduperson_orcid'];
     
     const nonce = generators.random();
     req.session.nonce = nonce;
@@ -136,6 +151,7 @@ app.get('/dologin', (req, res) => {
     const u = client.authorizationUrl({
         scope: scopes.join(" "),
         resource: `${HOST}/`,
+        redirect_uri: `${HOST}/oidcb`,
         state: generators.random(),
         nonce: nonce,
         code_challenge,
@@ -181,7 +197,8 @@ app.get('/oidcb', async (req, res) => {
 
         console.log("%O", userInfo);
 
-        req.session.profile = await findOrInsertUser(userInfo.sub, userInfo);
+        const ls_sub = userInfo.sub.replace("@lifescience-ri.eu", "@elixir-europe.org"); // XXX: keep backward compat on sub for Elixir AAI
+        req.session.profile = await findOrInsertUser(ls_sub, userInfo);
         req.session.profile.uid = req.session.profile.user_id; // XXX
         if (req.session.profile._is_new) {
             // Pub/sub through Redis for new users registrations:
@@ -256,7 +273,8 @@ app.get("/logout", (req, res)=>{
         post_logout_redirect_uri = `${HOST}/`;
     }
     // logout from elixir as well:
-    let end_session_url = "https://login.elixir-czech.org/oidc/endsession";
+    // let end_session_url = "https://login.elixir-czech.org/oidc/endsession";
+    let end_session_url = "https://login.aai.lifescience-ri.eu/oidc/endsession";
     redirect_to(res, end_session_url, {post_logout_redirect_uri});
 });
 
@@ -299,8 +317,8 @@ app.get("/.well-known/openid-configuration", (req, res) => {
 });
 
 app.get("/doregister", (req, res)=> {
-    redirect_to(res, "https://perun.elixir-czech.cz/registrar/", {
-        vo: 'elixir',
+    redirect_to(res, "https://signup.aai.lifescience-ri.eu/fed/registrar/", {
+        vo: 'lifescience',
         targetnew: `${HOST}/login`,
         targetexisting: `${HOST}/login`});
 });
@@ -389,14 +407,17 @@ app.get("/access_token", routeAuth, (req, res) => {
 });
 
 app.post("/access_token", routeAuth, multer.none(), (req, res) => {
-    let { audience, ttl, scopes } = req.body;
-    audience = audience || HOST;
+    let {ttl, scopes } = req.body;
     ttl = (ttl || 1) * 60 * 60;
     scopes = scopes || "read write";
-    const token = newAccessToken(req.session.profile.uid, audience, ttl, `${HOST}`, scopes);
+    const token = newAccessToken(req.session.profile.uid, ttl, `${HOST}`, scopes);
     res.set('Cache-Control', 'no-store'); // No cache
     res.type('txt').send(token);
 });
 
+
+app.get("/oob", routeAuth, (req, res) => {
+    view(req, res, 'oob', req.query);
+});
 
 app.use("/oauth2", oauthRouter);

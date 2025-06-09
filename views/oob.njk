@@ -1,0 +1,50 @@
+{% extends "base.njk" %}
+{% block stylesheets %}
+{{ super() }}
+
+    <style>
+     #auth_code { 
+         padding:0.375em 0.75rem;
+         border-radius:0.25rem;
+         border: 1px solid #ced4da;
+         line-height: 1.5;
+         border-color: .15s ease-in-out,box-shadow .15s ease-in-out;
+         margin: 3px;
+         background-color: #dcdcdd;
+         color: black;
+    }
+     #copyit { 
+         margin:1rem auto;
+         text-decoration: none;
+         color: #fff !important;
+         padding:0.375em 0.75rem;
+         background-color: #0b5ed7;
+         border-radius:0.25rem;
+         border: 1px solid #ced4da;
+         line-height: 1.5;
+     }
+    </style>
+{% endblock %}
+
+{% block body %}
+    {{ super() }}
+    <main class="container py-4">
+        <h1 class="text-center">Authorization code</h1>
+        <p>You can copy the following <em>code</em> and paste it to the application you tried to log into</p>
+        <div id="result">
+            <label for="auth_code">Code:</label>
+            <input type="text" id="auth_code" size="45" readonly="on" value="{{code}}">
+            <button id="copyit">Copy to clipboard</button> 
+        </div>
+    <script nonce="{{cspNonce}}">
+
+        function copyAuthCode(event) {
+            event.preventDefault();
+            let ta = document.getElementById('auth_code');
+            ta.select()
+            document.execCommand("copy");
+        }
+        document.getElementById('copyit').addEventListener('click', copyAuthCode);
+    </script>
+     </main>
+{% endblock %}

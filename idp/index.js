@@ -13,16 +13,18 @@ const JSONWebKey = require('json-web-key' );
 
 const HOST = config.myhost;
 const CONFID_CLIENTS_TTL = config.confidential_clients_ttl || 3600;
+const AUDIENCE = 'ProstateNet';
 
 function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
-    const newAccessToken = function(subject, audience, ttl, authorized_party, scope="read write") {
+    const newAccessToken = function(subject, ttl, authorized_party, scope="read write") {
 
-        const accToken = {type: "access_token", azp: authorized_party, scope};
+        const accToken = {type: "access_token", azp: authorized_party, policy: 'readwrite', scope};
         const token = jwt.sign(accToken, webKeyPrivate, {
             jwtid: ulid.ulid(),
             algorithm: 'RS256', expiresIn: ttl,
-            issuer: HOST, audience, subject
+            keyid: '1',
+            issuer: HOST, audience: AUDIENCE, subject
         });
         return token;
     }
@@ -31,8 +33,11 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         let user_data = null;
         let error = null;
         try {
-            const {rows} = await db.query("select * from users where user_id=$1",
-                                        [user_id]);
+            const {rows} = await db.query(`
+                    SELECT u.*, o.name AS org_name FROM users u 
+                    LEFT JOIN organizations o ON u.org_id=o.id
+                    WHERE user_id=$1`,
+                    [user_id]);
             if (rows && rows.length != 0) {
                 user_data = rows[0];
                 Object.keys(user_data).forEach(key => {
@@ -49,6 +54,28 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         return [error, user_data];
     }
 
+    const newIdToken = async function(uid, ttl, audience, nonce) {
+        let [error, user_data] = await getUser(uid);
+        if (error || !user_data) {
+            console.log("Requesting user data failed for uid:", uid, "Error:", error);
+            return [error || new Error('Not found'), null];
+        }
+
+        delete user_data['elixir_id_token'];
+        user_data['sub'] = user_data['uid'] = uid;
+
+        let idToken = user_data; // JSON.parse(await redisClient.get("uid:"+uid));
+        idToken.type = "id_token";
+        idToken.nonce = nonce;
+        idToken.policy = 'readwrite';
+        
+        const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {
+            algorithm: 'RS256', expiresIn: ttl,
+            keyid: '1',
+            issuer: HOST, audience: audience
+        });
+        return [null, jwtIdToken]
+    }
 
     const db_client_registration = async function(client_id) {
         // Check client_id, and retrieve the client registration info
@@ -92,7 +119,8 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         x5u: a URL that points to a X.509 public key certificate or certificate chain 
              in PEM encoded form.
         */
-        jwk.x5u = `${HOST}${req.baseUrl}/pem`;
+        // jwk.x5u = `${HOST}${req.baseUrl}/pem`;
+        jwk.kid = "1";
         res.json({keys: [jwk]});
     });
 
@@ -133,7 +161,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         // Check that client has sent the correct redirect uri:
         // (use by default the one already registered)
         redirect_uri = redirect_uri || client_registration.redirect_uri;
-        if (client_registration.redirect_uri != redirect_uri)
+        if (client_registration.redirect_uri != redirect_uri && redirect_uri != 'urn:ietf:wg:oauth:2.0:oob')
         {
             // Same rationale as above (See https://tools.ietf.org/html/rfc6749#section-4.1.2.1):
             res.status(400).render('idp_error', { user: null, error: `Invalid 'redirect_uri' : '${redirect_uri}'` });
@@ -166,12 +194,13 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                                 error: "Your account is not ready yet, verification is pending..." });
                 return;
             }
-            
             const data = { uid: req.session.profile.uid, scope, redirect_uri, client_id, nonce,
                            code_challenge, audience, secret_hash: client_registration.pwd_hash};
             const code_ttl = 2 * 60; // 2 minutes TTL for this code
             await redisClient.set('oidc-code:' + code, JSON.stringify(data), 'ex', code_ttl);
-            redirect_to(res, redirect_uri, {code, state});
+            redirect_to(res, 
+                        redirect_uri == 'urn:ietf:wg:oauth:2.0:oob' ? `${HOST}/oob` : redirect_uri, 
+                        {code, state});
             return;
         }
         else {
@@ -188,6 +217,13 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
     router.post("/token", async (req, res) => {
         // See https://developer.okta.com/docs/reference/api/oidc/#token
         let {code, redirect_uri, grant_type, client_id, client_secret, code_verifier, audience, refresh_token} = req.body;
+
+
+        // Only "authorization_code", "client_credentials", and "refresh_token" are supported:
+        if (!["client_credentials", "authorization_code", "refresh_token"].includes(grant_type)) {
+            res.status(401).json({error: 'unsupported_grant_type'});
+            return;
+        }
 
         // Get clients supplied credentials:
         // See https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1
@@ -207,7 +243,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         }
 
         const TTL = 30 * 60; // Access token lifetime: 30 minutes
-        const REFRESH_TTL = 24 * 60 * 60; // Refresh token lifetime: 24 hours
+        const REFRESH_TTL = 5*24 * 60 * 60; // Refresh token lifetime: 5 days
 
         if (grant_type == "client_credentials") {
             // Check client_id, and retrieve the client registration info
@@ -227,7 +263,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             }
             
             const scope = req.body.scope || 'access';
-            const jwtAccToken = newAccessToken(client_id, audience || client_id, CONFID_CLIENTS_TTL, client_id, scope);
+            const jwtAccToken = newAccessToken(client_id, CONFID_CLIENTS_TTL, client_id, scope);
             let response = {token_type : "Bearer", expires_in : CONFID_CLIENTS_TTL, 
                             access_token: jwtAccToken};
             console.log("CliCreds Token response: %O", response);
@@ -270,7 +306,8 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
 
 
             let [error, user_data] = await getUser(authReq.uid);
-            if (error || !user_data) {console.log("Client credentials not valid! Authorization header:"+authHeader);
+            if (error || !user_data) {
+                console.log("Requesting user data failed for uid:", authReq.uid, "Error:", error);
                 // Error response: https://openid.net/specs/openid-connect-core-1_0.html#TokenErrorResponse
                 res.status(500).json({error: error ? error : 'User not found'});
                 return;
@@ -282,17 +319,19 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             let idToken = user_data; // JSON.parse(await redisClient.get("uid:"+authReq.uid));
             idToken.type = "id_token";
             idToken.nonce = authReq.nonce;
+            idToken.policy = 'readwrite';
             
             const jwtIdToken = jwt.sign(idToken, webKeyPrivate, {
                 algorithm: 'RS256', expiresIn: TTL,
+                keyid: '1',
                 issuer: HOST, audience: authReq.client_id
             });
             
-            const jwtAccToken = newAccessToken(idToken.uid, authReq.audience, TTL, authReq.client_id, authReq.scope);
+            const jwtAccToken = newAccessToken(idToken.uid, TTL, authReq.client_id, authReq.scope);
             const refreshToken = generators.random(32);
             const refreshTokenInfo = {
                 uid: idToken.uid,
-                audience: authReq.audience,
+                audience: authReq.client_id,
                 scope: authReq.scope,
                 client_id: authReq.client_id,
                 d: Date.now(),
@@ -312,7 +351,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
             // based on this:
             let [client_registration, error] = await db_client_registration(client_id);
             if (error) {
-                console.log("%O", e);
+                console.log("%O", error);
                 res.status(500).send("Database error!!");
                 return;
             }
@@ -330,27 +369,41 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
                 res.status(400).json({error: "invalid_request"});
                 return;
             }
-            await redisClient.del("tokens:refresh:"+refresh_token)
             if (client_id != refreshTokenInfo.client_id) {
+                await redisClient.del("tokens:refresh:"+refresh_token)
                 res.status(400).json({error: "invalid_request"});
                 return;
             }
+            // old refresh token expires in 5 minutes from now. We allow this time window
+            // so that if the client makes concurrent requests to refresh, these requests
+            // will not fail. Please note that this leaves a tiny probability for
+            // refresh token compromise..
+            await redisClient.expire("tokens:refresh:"+refresh_token, 5*60); 
             refreshTokenInfo.scope = req.body.scope || refreshTokenInfo.scope;
             refreshTokenInfo.g += 1;
-            const jwtAccToken = newAccessToken(refreshTokenInfo.uid, refreshTokenInfo.audience, TTL, client_id, refreshTokenInfo.scope);
+            const jwtAccToken = newAccessToken(refreshTokenInfo.uid, TTL, client_id, refreshTokenInfo.scope);
             const refreshToken = generators.random(32);
             let response = {token_type : "Bearer", expires_in : TTL, 
                             scope: refreshTokenInfo.scope,
                             access_token: jwtAccToken, refresh_token: refreshToken};
+
+            // If the original request included 'openid' we also refresh the id_token:
+            if (refreshTokenInfo.scope.split(' ').includes('openid')) {
+                const idTokenAud = audience || client_id
+                const [err, jwtIdToken] = await newIdToken(refreshTokenInfo.uid, TTL, idTokenAud, generators.random(32));
+                if (err) {
+                    res.status(500).json({error: err});
+                    return;
+                }
+                response.id_token = jwtIdToken;
+            }
+
             await redisClient.set('tokens:refresh:'+refreshToken, JSON.stringify(refreshTokenInfo), 'ex', REFRESH_TTL);
             console.log("Refresh Token response: %O", response);
             res.json(response);
             return;
         }
 
-        // Only "authorization_code", "client_credentials", and "refresh_token" are supported:
-        res.status(401).json({error: 'unsupported_grant_type'});
-        return;
     });
 
 
