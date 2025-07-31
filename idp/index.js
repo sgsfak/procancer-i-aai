@@ -142,7 +142,7 @@ function idpRoutes({redisClient, webKeyPub, webKeyPrivate}) {
         // based on this:
         let [client_registration, error] = await db_client_registration(client_id);
         if (error) {
-            console.log("%O", e);
+            console.log("%O", error);
             res.status(500).send("Database error!!");
             return;
         }

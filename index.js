@@ -75,6 +75,7 @@ app.use(express.json());
 
 let client;
 //Issuer.discover('https://login.elixir-czech.org/oidc/')
+console.log("OIDC DISCOVERY...");
 Issuer.discover('https://login.aai.lifescience-ri.eu/oidc/')
 .then(issuer => {
     console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
