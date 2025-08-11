@@ -1,0 +1,5 @@
+pgdata/
+db-init/
+npm-debug.log
+Dockerfile
+.dockerignore

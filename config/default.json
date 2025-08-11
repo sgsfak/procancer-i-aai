@@ -1,0 +1,19 @@
+{
+    "myhost": "https://aai.procancer-i.eu",
+    "elixir_aai": {
+        "client": {
+            "id": "...",
+            "secret": "..."
+        }
+    },
+    "db": {
+        "host": "postgres",
+        "user": "pcai_data",
+        "password": "pcai_data",
+        "database": "pcai",
+        "max": 20,
+        "idleTimeoutMillis": 30000,
+        "connectionTimeoutMillis": 2000,
+        "maxLifetimeSeconds": 60
+    }
+}

@@ -10,12 +10,12 @@ const Redis = require('ioredis')
 
 const nunjucks = require("nunjucks")
 
-const {redirect_to} = require("./utils");
+const { redirect_to } = require("./utils");
 const db = require('./db');
 const ulid = require('ulid');
 
 let RedisStore = require('connect-redis')(session)
-let redisClient = new Redis({keyPrefix: 'pca-aai:'});
+let redisClient = new Redis({ keyPrefix: 'pca-aai:', host: "redis" });
 const app = express()
 const port = 3000
 
@@ -49,16 +49,17 @@ const webKeyPrivate = fs.readFileSync('jwtRS256.key');
 
 // Sets the `script-src` directive to "'self' 'nonce-e33ccde670f149c1789b1e1e113b0916'" (or similar)
 app.use((req, res, next) => {
-  res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
-  next();
+    res.locals.cspNonce = crypto.randomBytes(16).toString("hex");
+    next();
 });
 app.use(helmet.contentSecurityPolicy({
     useDefaults: true,
     directives: {
-      scriptSrc: ["'self'", "https://code.jquery.com/", "https://cdn.datatables.net",
-                  (req, res) => `'nonce-${res.locals.cspNonce}'`],
-      imgSrc: ["'self'", "https://prostatenet.eu/", "https://cdn.datatables.net"]
-  }}));
+        scriptSrc: ["'self'", "https://code.jquery.com/", "https://cdn.datatables.net",
+            (req, res) => `'nonce-${res.locals.cspNonce}'`],
+        imgSrc: ["'self'", "https://prostatenet.eu/", "https://cdn.datatables.net"]
+    }
+}));
 
 app.use(session({
     name: "aai-sid",
@@ -68,7 +69,7 @@ app.use(session({
     store: new RedisStore({ client: redisClient })
 }));
 
-app.use(express.urlencoded({extended: true}));
+app.use(express.urlencoded({ extended: true }));
 app.set('json spaces', 2);
 
 app.use(express.json());
@@ -77,25 +78,25 @@ let client;
 //Issuer.discover('https://login.elixir-czech.org/oidc/')
 console.log("OIDC DISCOVERY...");
 Issuer.discover('https://login.aai.lifescience-ri.eu/oidc/')
-.then(issuer => {
-    console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
-    
-    client = new issuer.Client({
-        client_id: config.get("elixir_aai.client.id"),
-        client_secret: config.get("elixir_aai.client.secret"),
-        redirect_uris: `${HOST}/oidcb`,
-        response_types: ['code'],
-        // id_token_signed_response_alg (default "RS256")
-        // token_endpoint_auth_method (default "client_secret_basic")
-    });
-})
-// Test the connection to the database, and the existence of the clients table:
-.then (() =>  db.query("SELECT count(redirect_uri) cnt FROM clients where active is true"))
-.then (({rows}) => console.log(`Number of available clients:${rows[0].cnt}`))
-.then(() => app.listen(port))
-.then(() => console.log(`ProCancer-I AAI listening at http://localhost:${port}`));
+    .then(issuer => {
+        console.log('Discovered issuer %s %O', issuer.issuer, issuer.metadata);
 
-app.use('/static', express.static('public', {maxAge: 60000 * 5}));
+        client = new issuer.Client({
+            client_id: config.get("elixir_aai.client.id"),
+            client_secret: config.get("elixir_aai.client.secret"),
+            redirect_uris: `${HOST}/oidcb`,
+            response_types: ['code'],
+            // id_token_signed_response_alg (default "RS256")
+            // token_endpoint_auth_method (default "client_secret_basic")
+        });
+    })
+    // Test the connection to the database, and the existence of the clients table:
+    .then(() => db.query("SELECT count(redirect_uri) cnt FROM clients where active is true"))
+    .then(({ rows }) => console.log(`Number of available clients:${rows[0].cnt}`))
+    .then(() => app.listen(port))
+    .then(() => console.log(`ProCancer-I AAI listening at http://localhost:${port}`));
+
+app.use('/static', express.static('public', { maxAge: 60000 * 5 }));
 // app.set('view engine', 'blade');
 // set default express engine and extension:
 app.engine('html', nunjucks.render);
@@ -107,9 +108,8 @@ nunjucks.configure('views', {
 });
 
 
-function view(req, res, template, data={})
-{
-    const dataUser = {'cspNonce':res.locals.cspNonce, 'user' : req.session.profile ? req.session.profile : null, ...data};
+function view(req, res, template, data = {}) {
+    const dataUser = { 'cspNonce': res.locals.cspNonce, 'user': req.session.profile ? req.session.profile : null, ...data };
     // console.log("Data: %O", dataUser);
     res.render(template, dataUser);
 }
@@ -129,26 +129,26 @@ app.get('/dologin', (req, res) => {
     // store the code_verifier in your framework's session mechanism, if it is a cookie based solution
     // it should be httpOnly (not readable by javascript) and encrypted.
     req.session.code_verifier = code_verifier;
-    
+
     const code_challenge = generators.codeChallenge(code_verifier);
-    
+
     const scopes = ['openid',
-    'email',
-    'profile',
-    'address',
-    'phone',
-    'offline_access',
-    'perun_api',
-    'country',
-    'schac_home_organization',
-    'eduperson_scoped_affiliation',
-    'voperson_external_affiliation',
-    'eduperson_entitlement',
-    'eduperson_orcid'];
-    
+        'email',
+        'profile',
+        'address',
+        'phone',
+        'offline_access',
+        'perun_api',
+        'country',
+        'schac_home_organization',
+        'eduperson_scoped_affiliation',
+        'voperson_external_affiliation',
+        'eduperson_entitlement',
+        'eduperson_orcid'];
+
     const nonce = generators.random();
     req.session.nonce = nonce;
-    
+
     const u = client.authorizationUrl({
         scope: scopes.join(" "),
         resource: `${HOST}/`,
@@ -159,21 +159,21 @@ app.get('/dologin', (req, res) => {
         code_challenge_method: 'S256',
     });
     // console.log(`Redirecting to URL=${u}`);
-    
+
     res.redirect(u);
 });
 
-const findOrInsertUser = async function(elixirUid, idToken) {
+const findOrInsertUser = async function (elixirUid, idToken) {
     const userId = ulid.ulid();
-    const {rows} = await db.query(`INSERT INTO users(user_id, elixir_id, elixir_id_token) 
+    const { rows } = await db.query(`INSERT INTO users(user_id, elixir_id, elixir_id_token) 
                                    VALUES($1,$2,$3) ON CONFLICT (elixir_id)
                                    DO UPDATE SET elixir_id_token=EXCLUDED.elixir_id_token 
                                    RETURNING *, (xmax = 0) AS _is_new`,
-                                  [userId, elixirUid, idToken]);
+        [userId, elixirUid, idToken]);
     const user_data = rows[0];
     Object.keys(user_data).forEach(key => {
         if (user_data[key] === null) {
-          delete user_data[key];
+            delete user_data[key];
         }
     });
     return user_data;
@@ -183,12 +183,12 @@ app.get('/oidcb', async (req, res) => {
     const params = client.callbackParams(req);
     console.log("got cb");
     console.dir(params);
-    
+
     const code_verifier = req.session.code_verifier;
     const nonce = req.session.nonce;
-    
+
     try {
-        const tokenSet = await client.callback(`${HOST}/oidcb`, params, { code_verifier, state: params.state, nonce});
+        const tokenSet = await client.callback(`${HOST}/oidcb`, params, { code_verifier, state: params.state, nonce });
         console.log('received and validated tokens %j', tokenSet);
         console.log('validated ID Token claims %j', tokenSet.claims());
         req.session.tokens = tokenSet;
@@ -207,7 +207,7 @@ app.get('/oidcb', async (req, res) => {
         }
         console.log("User %s logged in", req.session.profile.uid);
 
-        
+
         if (req.session.continue) {
             const u = req.session.continue;
             delete req.session.continue;
@@ -244,7 +244,7 @@ function routeAuth(req, res, next) {
 // It "wraps" routeAuth in order to check first that
 // the user is logged in:
 function adminAuth(req, res, next) {
-    routeAuth(req, res, function() {
+    routeAuth(req, res, function () {
         if (!req.session.profile.is_admin) {
             res.status(401).send("You are not authorized to access this resource");
             return;
@@ -259,7 +259,7 @@ app.get('/profile', routeAuth, (req, res) => {
     view(req, res, 'profile');
 });
 
-app.get("/logout", (req, res)=>{
+app.get("/logout", (req, res) => {
     // TODO: Actually in the case of https://openid.net/specs/openid-connect-rpinitiated-1_0.html
     // we should check if the post_logout_redirect_uri value supplied match 
     // one of the client's previously registered post_logout_redirect_uris values.
@@ -267,7 +267,7 @@ app.get("/logout", (req, res)=>{
     // TODO: Furthermore "An id_token_hint carring an ID Token for the RP is also REQUIRED 
     // when requesting post-logout redirection; if it is not supplied with post_logout_redirect_uri,
     // the OP MUST NOT perform post-logout redirection." 
-    let { post_logout_redirect_uri, state} = req.query;
+    let { post_logout_redirect_uri, state } = req.query;
     req.session.destroy();
 
     if (!post_logout_redirect_uri) {
@@ -276,14 +276,14 @@ app.get("/logout", (req, res)=>{
     // logout from elixir as well:
     // let end_session_url = "https://login.elixir-czech.org/oidc/endsession";
     let end_session_url = "https://login.aai.lifescience-ri.eu/oidc/endsession";
-    redirect_to(res, end_session_url, {post_logout_redirect_uri});
+    redirect_to(res, end_session_url, { post_logout_redirect_uri });
 });
 
 
 app.get("/.well-known/openid-configuration", (req, res) => {
-    
+
     const configuration = {
-        response_types_supported: [ "code" ],
+        response_types_supported: ["code"],
         introspection_endpoint: `${HOST}/oauth2/introspect`,
         grant_types_supported: ["authorization_code", "client_credentials", "refresh_token"],
         issuer: `${HOST}`,
@@ -301,13 +301,13 @@ app.get("/.well-known/openid-configuration", (req, res) => {
             "family_name",
             "email"
         ],
-        subject_types_supported: [ "public"],
+        subject_types_supported: ["public"],
         id_token_signing_alg_values_supported: ["RS256"],
-        code_challenge_methods_supported: [ "S256" ],
-        
+        code_challenge_methods_supported: ["S256"],
+
         // See: https://openid.net/specs/openid-connect-core-1_0.html#ClientAuthentication
-        token_endpoint_auth_methods_supported: [ "client_secret_basic", "client_secret_post"],
-        
+        token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post"],
+
         authorization_endpoint: `${HOST}/oauth2/auth`,
         userinfo_endpoint: `${HOST}/oauth2/userinfo`,
         end_session_endpoint: `${HOST}/logout`,
@@ -317,11 +317,12 @@ app.get("/.well-known/openid-configuration", (req, res) => {
     res.json(configuration);
 });
 
-app.get("/doregister", (req, res)=> {
+app.get("/doregister", (req, res) => {
     redirect_to(res, "https://signup.aai.lifescience-ri.eu/fed/registrar/", {
         vo: 'lifescience',
         targetnew: `${HOST}/login`,
-        targetexisting: `${HOST}/login`});
+        targetexisting: `${HOST}/login`
+    });
 });
 
 
@@ -339,10 +340,10 @@ app.get('/users', adminAuth, async (req, res) => {
             u.org_id, o.name as org
             FROM users u LEFT JOIN organizations o ON u.org_id=o.id
             ORDER BY 1 DESC`
-            );
+        );
         let orgs = await db.query("SELECT id, name FROM organizations ORDER BY name ASC");
         // return res.json(rows);
-        view(req, res, "users", {users: users.rows, organizations: orgs.rows});
+        view(req, res, "users", { users: users.rows, organizations: orgs.rows });
     }
     catch (e) {
         console.log(e);
@@ -377,7 +378,7 @@ app.post('/users', adminAuth, async (req, res) => {
 app.get('/users/:uid', adminAuth, async (req, res) => {
     const uid = req.params.uid;
     try {
-        let {rows} = await db.query("SELECT * FROM users WHERE user_id=$1", [uid]);
+        let { rows } = await db.query("SELECT * FROM users WHERE user_id=$1", [uid]);
         if (rows.length == 0) {
             return res.status(404).send(`User "${uid}" not found!`);
         }
@@ -391,7 +392,7 @@ app.get('/users/:uid', adminAuth, async (req, res) => {
 
 app.get('/organizations', routeAuth, async (req, res) => {
     try {
-        let {rows} = await db.query("SELECT id, name, full_name, country FROM organizations ORDER BY id ASC");
+        let { rows } = await db.query("SELECT id, name, full_name, country FROM organizations ORDER BY id ASC");
         return res.json(rows);
     }
     catch (e) {
@@ -400,7 +401,7 @@ app.get('/organizations', routeAuth, async (req, res) => {
     }
 });
 
-const { newAccessToken, router : oauthRouter } = require("./idp")({redisClient, webKeyPub, webKeyPrivate});
+const { newAccessToken, router: oauthRouter } = require("./idp")({ redisClient, webKeyPub, webKeyPrivate });
 
 
 app.get("/access_token", routeAuth, (req, res) => {
@@ -408,7 +409,7 @@ app.get("/access_token", routeAuth, (req, res) => {
 });
 
 app.post("/access_token", routeAuth, multer.none(), (req, res) => {
-    let {ttl, scopes } = req.body;
+    let { ttl, scopes } = req.body;
     ttl = (ttl || 1) * 60 * 60;
     scopes = scopes || "read write";
     const token = newAccessToken(req.session.profile.uid, ttl, `${HOST}`, scopes);
