@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: aai_db
+    restart: always
+    environment:
+      POSTGRES_USER: pcai_data
+      POSTGRES_PASSWORD: pcai_data
+      POSTGRES_DB: pcai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pcai_data -d pcai"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: aai_redis
+
+  aai:
+    image: aai
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aai
+    working_dir: /usr/src/app
+    volumes:
+      - ./:/usr/src/app
+    ports:
+      - "3000:3000"
+    command: npm start
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  pgdata:
