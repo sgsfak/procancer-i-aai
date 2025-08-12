@@ -21,6 +21,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: aai_redis
+    restart: always
 
   aai:
     image: aai
@@ -28,6 +29,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: aai
+    restart: always
     working_dir: /usr/src/app
     volumes:
       - ./:/usr/src/app
